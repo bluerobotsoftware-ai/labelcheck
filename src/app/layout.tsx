@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Banner } from "@/components/Banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,6 +24,8 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
+
+        <Banner />
 
         <header className="border-b border-[var(--color-line)] bg-[var(--color-surface)] no-print">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
