@@ -138,3 +138,50 @@ describe("pixel-measured contrast", () => {
     expect(await measureWarningContrast(junk, WARNING_BOUNDS)).toBeNull();
   });
 });
+
+/**
+ * The reader answers in whatever unit it likes.
+ *
+ * The schema asks for fractions of the image; it frequently returns pixels —
+ * {x: 84, y: 883, width: 818, height: 69} on a 1000px label — and no rewording
+ * of the field description changed that. Read as fractions those clamp to a
+ * degenerate crop, the measurement returns null, and null reads downstream as
+ * "nothing wrong". A washed-out warning sailed through on exactly that path.
+ *
+ * Second time this bit: the cap-height figure did the same thing. The boundary
+ * normalises rather than assumes.
+ */
+describe("bounding boxes in either unit", () => {
+  const read = (name: string) =>
+    readFileSync(new URL(`../public/samples/${name}`, import.meta.url), null);
+
+  // The same region, expressed both ways: 800x1000 images.
+  const asFractions = { x: 0.0875, y: 0.872, width: 0.825, height: 0.076 };
+  const asPixels = { x: 70, y: 872, width: 660, height: 76 };
+
+  it("gives the same answer for pixels as for fractions", async () => {
+    const image = read("spirits-warning-illegible.png");
+    const fromFractions = await measureWarningContrast(image, asFractions);
+    const fromPixels = await measureWarningContrast(image, asPixels);
+    expect(fromPixels).not.toBeNull();
+    expect(fromPixels!.contrast).toBeCloseTo(fromFractions!.contrast, 5);
+  });
+
+  it("catches the washed-out warning when the box arrives in pixels", async () => {
+    // The exact regression: this returned null, and null meant "legible".
+    const measured = await measureWarningContrast(
+      read("spirits-warning-illegible.png"),
+      asPixels,
+    );
+    expect(measured).not.toBeNull();
+    expect(measured!.contrast).toBeLessThan(HIDDEN_WARNING_CONTRAST);
+  });
+
+  it("still passes a well-printed warning with a pixel box", async () => {
+    const measured = await measureWarningContrast(
+      read("spirits-bourbon-compliant.png"),
+      asPixels,
+    );
+    expect(measured!.contrast).toBeGreaterThan(MIN_WARNING_CONTRAST);
+  });
+});
