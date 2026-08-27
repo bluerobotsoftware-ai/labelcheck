@@ -452,3 +452,68 @@ describe("bottler trade names", () => {
     expect(check.rule).not.toContain("trade-name");
   });
 });
+
+/**
+ * Capitalisation never fails a field.
+ *
+ * Real labels are typographically expressive — display capitals, small caps,
+ * lower-case wordmarks — and TTB's own allowable-revision list lets a bottler
+ * change letters between upper and lower case without refiling. A real
+ * commercial label in the sample set carries its entire health warning in
+ * capitals, which is lawful, and an implementation that enforced sentence case
+ * would reject it.
+ *
+ * The single exception is the two words GOVERNMENT WARNING, which 27 CFR 16.22
+ * requires in capitals. That rule demands more capitals, never fewer, and is
+ * covered by its own tests.
+ */
+describe("case is never enforced on any field", () => {
+  const recase: Array<[string, (s: string) => string]> = [
+    ["as filed", (s) => s],
+    ["ALL CAPS", (s) => s.toUpperCase()],
+    ["all lower", (s) => s.toLowerCase()],
+    ["MiXeD", (s) => s.split("").map((c, i) => (i % 2 ? c.toUpperCase() : c.toLowerCase())).join("")],
+  ];
+
+  it.each(recase)("approves a label set in %s", (_name, transform) => {
+    const base = label();
+    const warning = base.governmentWarning!;
+    const [head, ...rest] = warning.text.split(":");
+
+    const report = verify(
+      { ...BOURBON_APPLICATION, brandName: "Old Tom Distillery" },
+      {
+        ...base,
+        brandName: { text: transform("Old Tom Distillery"), confidence: 0.97 },
+        classType: { text: transform("Kentucky Straight Bourbon Whiskey"), confidence: 0.97 },
+        bottlerName: { text: transform("Old Tom Distillery, Bardstown, KY"), confidence: 0.95 },
+        netContents: { text: transform("750 mL"), confidence: 0.97 },
+        alcoholContent: { text: transform("45% Alc./Vol. (90 Proof)"), confidence: 0.97 },
+        // Body re-cased; heading left in capitals, as the regulation requires.
+        governmentWarning: { ...warning, text: `${head}:${transform(rest.join(":"))}` },
+      },
+      META,
+    );
+
+    expect(report.recommendation).toBe("approve");
+    expect(report.checks.filter((c) => c.verdict === "fail")).toHaveLength(0);
+  });
+
+  it("still requires the two words GOVERNMENT WARNING in capitals", () => {
+    // The one case rule, and it demands more capitals rather than fewer.
+    const report = verify(
+      BOURBON_APPLICATION,
+      label({
+        governmentWarning: {
+          text: STATUTORY_WARNING.replace("GOVERNMENT WARNING:", "Government Warning:"),
+          confidence: 0.95,
+          headerIsAllCaps: false,
+          headerIsBold: true,
+          legibleSize: true,
+        },
+      }),
+      META,
+    );
+    expect(find(report.checks, "warning_capitalisation").verdict).toBe("fail");
+  });
+});
