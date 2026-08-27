@@ -22,7 +22,7 @@ Built as a take-home prototype for the Alcohol and Tobacco Tax and Trade Bureau.
            │  LabelExtraction
            ▼
 ┌──────────────────────┐   Pure TypeScript. No network, no model, no I/O.
-│  Rules engine        │   110 unit tests. Same input → same report, always.
+│  Rules engine        │   183 unit tests. Same input → same report, always.
 │  src/lib/ttb/        │
 └──────────┬───────────┘
            │  VerificationReport
@@ -73,9 +73,16 @@ ANTHROPIC_MODEL=claude-opus-5
 |---|---|
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
-| `npm test` | Run the test suite (110 tests) |
+| `npm test` | Run the test suite (183 tests, no network or API key needed) |
 | `npm run typecheck` | TypeScript, no emit |
+| `npm run lint` | ESLint |
 | `npm run samples` | Regenerate the sample label images |
+| `npm run verify:samples` | Push every sample label through a running instance and check each verdict against the manifest's ground truth. Needs the server running and a reader key configured. Set `BASE_URL` to smoke-test a deployed URL instead of localhost. |
+| `npm run compare:readers` | Measure candidate vision models against the samples for accuracy and latency. Needs `GEMINI_API_KEY`. |
+
+`npm test` is the one that matters for review: it covers every compliance rule
+and needs no network, no API key and no spend. The bottom two scripts are the
+only things in the repo that call a vision model.
 
 ---
 
@@ -323,7 +330,7 @@ src/lib/reader/       The vendor seam
 
 src/app/api/verify/   Thin route: validate → read → verify
 src/components/       UI
-tests/                110 tests
+tests/                183 tests
 docs/                 Regulatory research, with citations
 ```
 
