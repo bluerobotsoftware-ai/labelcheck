@@ -8,6 +8,22 @@
 import { SingleCheck } from "@/components/SingleCheck";
 import { hasRealReader } from "@/lib/reader";
 
+/**
+ * Rendered per request, not prerendered at build time.
+ *
+ * Without this, Next.js statically prerenders this page and `hasRealReader()`
+ * is evaluated once, during the build. The "no reader configured" banner then
+ * reflects whether a key existed when the bundle was compiled rather than
+ * whether one exists now — so adding the key to a deployment leaves the warning
+ * frozen in place until something forces a rebuild, and removing the key leaves
+ * the page falsely claiming a reader is present.
+ *
+ * That second direction is the dangerous one: a page insisting results are real
+ * on a server that has lost its key. This banner is a safety notice, and a
+ * safety notice compiled from stale state is worse than none.
+ */
+export const dynamic = "force-dynamic";
+
 export default function Page() {
   return (
     <>
