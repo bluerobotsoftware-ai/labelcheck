@@ -337,21 +337,29 @@ function SamplePicker({
         Each one loads its own application data. Some are deliberately
         non-compliant — the descriptions say which.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/*
+        One per row, and each kept to a single line. Thirteen samples in a
+        three-column grid pushed the form nearly two thousand pixels down the
+        page — an agent scrolled past the demo every time they used the tool.
+        The descriptions are long and belong in the docs, not in a picker.
+      */}
+      <ul className="divide-y divide-[var(--color-line)] rounded-lg border-2 border-[var(--color-line)]">
         {samples.map((sample) => (
-          <button
-            key={sample.id}
-            type="button"
-            onClick={() => onPick(sample)}
-            className="rounded-lg border-2 border-[var(--color-line)] p-3 text-left hover:border-[var(--color-brand)] hover:bg-[var(--color-brand)]/5"
-          >
-            <span className="block font-semibold">{sample.title}</span>
-            <span className="mt-1 block text-[15px] text-[var(--color-ink-soft)]">
-              {sample.description}
-            </span>
-          </button>
+          <li key={sample.id}>
+            <button
+              type="button"
+              onClick={() => onPick(sample)}
+              title={sample.description}
+              className="flex min-h-11 w-full items-baseline gap-3 px-4 py-2.5 text-left hover:bg-[var(--color-brand)]/5"
+            >
+              <span className="font-semibold whitespace-nowrap">{sample.title}</span>
+              <span className="truncate text-[15px] text-[var(--color-ink-soft)]">
+                {sample.description}
+              </span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }
