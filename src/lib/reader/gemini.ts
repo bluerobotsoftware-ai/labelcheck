@@ -14,10 +14,48 @@
 
 import type { LabelExtraction } from "../ttb/types";
 import { EXTRACTION_PROMPT, labelExtractionSchema } from "./schema";
-import { ReaderError, type LabelReader, type ReadRequest, type ReadResult } from "./types";
+import { isReaderError, ReaderError, type LabelReader, type ReadRequest, type ReadResult } from "./types";
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+/**
+ * Model chain, tried in order.
+ *
+ * Not a single default, because a single default was measurably not survivable
+ * on a free tier. Measured with `scripts/compare-readers.mjs` over the sample
+ * set, degraded variants included:
+ *
+ *   gemini-3.5-flash-lite   100% (15/15)   median 3.55s   quota held
+ *   gemini-3.6-flash         93% (14/15)   median 17.3s   429 quota exceeded
+ *
+ * The lite model leads on evidence, not on intuition: it was both more accurate
+ * on these labels and five times faster, and it transcribed the health warning
+ * verbatim every time — the hardest read on the page. 3.6-flash's single miss
+ * was a trailing full stop ("750 mL." for "750 mL"), which the volume parser
+ * absorbs anyway; its real disqualifier was exhausting the free-tier quota
+ * partway through the run.
+ *
+ * Both returned 503 "high demand" at points, which is the actual operating
+ * condition of a free tier and the reason this is a chain: a 429 or 503 on one
+ * model falls through to the next rather than failing the agent's request. A
+ * paid deployment can collapse this to one model with GEMINI_MODEL.
+ *
+ * gemini-2.5-flash was the original default and is now closed to new API keys,
+ * returning a 404 that names its replacement — model availability moves, so
+ * nothing here is hard-wired.
+ */
+const MODEL_CHAIN = process.env.GEMINI_MODEL
+  ? [process.env.GEMINI_MODEL]
+  : ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite"];
+
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+
+/**
+ * Ceiling per model attempt.
+ *
+ * With a three-model chain, a 20s budget per link means a 60s worst case —
+ * worse for an agent than an honest failure. 12s is well past the measured
+ * 3.55s median while keeping the whole chain inside a wait a person tolerates.
+ */
+const PER_MODEL_TIMEOUT_MS = 12_000;
 
 const SUPPORTED = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
@@ -58,8 +96,17 @@ const RESPONSE_SCHEMA = {
         headerIsAllCaps: { type: "BOOLEAN" },
         headerIsBold: { type: "BOOLEAN" },
         legibleSize: { type: "BOOLEAN" },
+        appearance: {
+          type: "OBJECT",
+          properties: {
+            textColorHex: { type: "STRING" },
+            backgroundColorHex: { type: "STRING" },
+            capHeightPercentOfLabel: { type: "NUMBER" },
+          },
+          required: ["textColorHex", "backgroundColorHex", "capHeightPercentOfLabel"],
+        },
       },
-      required: ["text", "confidence", "headerIsAllCaps", "headerIsBold", "legibleSize"],
+      required: ["text", "confidence", "headerIsAllCaps", "headerIsBold", "legibleSize", "appearance"],
     },
     imageQuality: {
       type: "OBJECT",
@@ -70,9 +117,18 @@ const RESPONSE_SCHEMA = {
       },
       required: ["score", "issues", "tooPoorToReview"],
     },
+    labelLegibility: {
+      type: "OBJECT",
+      properties: {
+        score: { type: "NUMBER" },
+        belowOrdinaryEyesight: { type: "BOOLEAN" },
+        issues: { type: "ARRAY", items: { type: "STRING" } },
+      },
+      required: ["score", "belowOrdinaryEyesight", "issues"],
+    },
     notes: { type: "ARRAY", items: { type: "STRING" } },
   },
-  required: ["imageQuality", "notes"],
+  required: ["imageQuality", "labelLegibility", "notes"],
 } as const;
 
 export class GeminiReader implements LabelReader {
@@ -84,16 +140,15 @@ export class GeminiReader implements LabelReader {
     return Boolean(process.env.GEMINI_API_KEY);
   }
 
-  async read({ image, mimeType }: ReadRequest): Promise<ReadResult> {
-    if (!SUPPORTED.has(mimeType)) {
-      throw new ReaderError(`Unsupported media type: ${mimeType}`, {
-        userMessage: `${mimeType} images cannot be read. Please upload a JPEG, PNG, GIF or WebP.`,
+  async read(request: ReadRequest): Promise<ReadResult> {
+    if (!SUPPORTED.has(request.mimeType)) {
+      throw new ReaderError(`Unsupported media type: ${request.mimeType}`, {
+        userMessage: `${request.mimeType} images cannot be read. Please upload a JPEG, PNG, GIF or WebP.`,
         retryable: false,
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.GEMINI_API_KEY) {
       throw new ReaderError("GEMINI_API_KEY is not set", {
         userMessage:
           "The label reader is not configured on this server. Set GEMINI_API_KEY and restart.",
@@ -101,16 +156,50 @@ export class GeminiReader implements LabelReader {
       });
     }
 
+    /*
+     * Walk the chain. A model that is out of quota (429) or congested (503) is
+     * a fact about that model right now, not about the request, so the sensible
+     * response is to ask a different one rather than to fail the agent. Any
+     * other error — a bad key, an unreadable image, malformed output — would
+     * recur identically on every model, so it stops here.
+     */
+    let lastError: ReaderError | undefined;
+
+    for (const model of MODEL_CHAIN) {
+      try {
+        return await this.attempt(model, request);
+      } catch (error) {
+        if (!isReaderError(error)) throw error;
+        lastError = error;
+        if (!error.options.retryable) throw error;
+      }
+    }
+
+    throw (
+      lastError ??
+      new ReaderError("No models configured", {
+        userMessage: "The label reader is not configured on this server.",
+        retryable: false,
+      })
+    );
+  }
+
+  /** One call to one model. */
+  private async attempt(
+    model: string,
+    { image, mimeType }: ReadRequest,
+  ): Promise<ReadResult> {
+    const apiKey = process.env.GEMINI_API_KEY as string;
     const started = Date.now();
 
     // Abort rather than hang: a stalled request must surface as an actionable
     // error, not an indefinite spinner.
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20_000);
+    const timeout = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT_MS);
 
     try {
       const response = await fetch(
-        `${ENDPOINT}/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        `${ENDPOINT}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -137,13 +226,21 @@ export class GeminiReader implements LabelReader {
               // the model inventing label text that is not on the bottle.
               temperature: 0,
               maxOutputTokens: 2048,
+              /*
+               * Reading characters off a page is perception, not reasoning.
+               * Thinking costs ~1s of the 5-second budget and changed nothing
+               * in what came back. Note that 2.5's thinkingBudget: 0 is
+               * rejected outright by 3.x (400) — thinkingLevel is the current
+               * shape.
+               */
+              thinkingConfig: { thinkingLevel: "low" },
             },
           }),
         },
       );
 
       if (!response.ok) {
-        throw translateHttp(response.status, await safeText(response));
+        throw translateHttp(response.status, await safeText(response), model);
       }
 
       const payload = (await response.json()) as GeminiResponse;
@@ -195,14 +292,15 @@ export class GeminiReader implements LabelReader {
       return {
         extraction: validated.data as LabelExtraction,
         elapsedMs: Date.now() - started,
-        reader: `gemini:${MODEL}`,
+        reader: `gemini:${model}`,
         usage: {
           inputTokens: payload.usageMetadata?.promptTokenCount,
           outputTokens: payload.usageMetadata?.candidatesTokenCount,
+          thinkingTokens: payload.usageMetadata?.thoughtsTokenCount,
         },
       };
     } catch (error) {
-      if (error instanceof ReaderError) throw error;
+      if (isReaderError(error)) throw error;
       if (error instanceof Error && error.name === "AbortError") {
         throw new ReaderError("Request timed out", {
           userMessage:
@@ -248,11 +346,19 @@ function normalise(raw: Partial<LabelExtraction>): LabelExtraction {
       issues: ["The reader did not report image quality."],
       tooPoorToReview: false,
     },
+    // Absent means unassessed, not compliant. Default to legible so a silent
+    // reader cannot manufacture a rejection, and let the image-quality gate
+    // catch genuinely unusable submissions.
+    labelLegibility: raw.labelLegibility ?? {
+      score: 0.75,
+      belowOrdinaryEyesight: false,
+      issues: ["The reader did not assess label legibility."],
+    },
     notes: raw.notes ?? [],
   };
 }
 
-function translateHttp(status: number, body: string): ReaderError {
+function translateHttp(status: number, body: string, model: string): ReaderError {
   if (status === 400 && /API key not valid/i.test(body)) {
     return new ReaderError("Invalid API key", {
       userMessage:
@@ -268,8 +374,8 @@ function translateHttp(status: number, body: string): ReaderError {
     });
   }
   if (status === 404) {
-    return new ReaderError(`Model ${MODEL} not found`, {
-      userMessage: `The configured model "${MODEL}" is not available to this API key. Set GEMINI_MODEL to a model your account can use.`,
+    return new ReaderError(`Model ${model} not found`, {
+      userMessage: `The model "${model}" is not available to this API key. Set GEMINI_MODEL to one your account can use.`,
       retryable: false,
     });
   }
@@ -303,5 +409,5 @@ async function safeText(response: Response): Promise<string> {
 
 interface GeminiResponse {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
 }

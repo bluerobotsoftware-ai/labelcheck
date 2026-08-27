@@ -15,12 +15,14 @@
 
 import { parseAlcohol, proofIsConsistent, toleranceFor } from "./abv";
 import { checkStandardOfFill, formatVolume, parseVolume } from "./netContents";
+import { measureLegibility } from "./contrast";
 import { canonicalTokens, ladderMatch } from "./normalize";
 import { combinedSimilarity, containsAllTokens } from "./similarity";
 import type {
   Application,
   CheckCategory,
   CheckResult,
+  ImageQuality,
   FieldReading,
   LabelExtraction,
   Recommendation,
@@ -46,7 +48,36 @@ const REVIEW_SIMILARITY_THRESHOLD = 0.82;
  * when the strings happen to agree. A confident-looking match on text the
  * reader admits it could barely see is worse than no answer at all.
  */
-const MIN_USABLE_CONFIDENCE = 0.4;
+const MIN_USABLE_CONFIDENCE = 0.5;
+
+/**
+ * Below this image-quality score, nothing read from the image is accepted —
+ * whatever the reader claims about individual fields, and whatever it says
+ * about `tooPoorToReview`.
+ *
+ * This exists because of a measured failure, not a theoretical one. Given a
+ * label photographed at heavy defocus and severe underexposure — one where the
+ * health warning is not visible at all to the eye — the reader returned
+ * `tooPoorToReview: false`, a quality score of 0.4, and the complete statutory
+ * warning text transcribed "verbatim" at 50% confidence. It had not read that
+ * text. It knew what a bourbon label says and supplied it from expectation.
+ *
+ * The engine then passed it: `warning-verbatim`. A hallucinated compliance
+ * PASS on a photograph containing no legible warning is the worst output this
+ * system can produce, and no amount of care in the rules prevents it, because
+ * the rules were reasoning correctly about fabricated input.
+ *
+ * Two defences follow. The reader's own "is this reviewable" opinion is not
+ * trusted on its own, and a poor score disqualifies the whole extraction rather
+ * than individual fields — because a model confident enough to invent one field
+ * is confident enough to have invented the others.
+ */
+const MIN_REVIEWABLE_IMAGE_SCORE = 0.5;
+
+/** Can any conclusion safely be drawn from this photograph? */
+function imageIsReviewable(quality: ImageQuality): boolean {
+  return !quality.tooPoorToReview && quality.score >= MIN_REVIEWABLE_IMAGE_SCORE;
+}
 
 /**
  * The confidence gate, as a standalone check.
@@ -748,6 +779,126 @@ function checkBottler(
   };
 }
 
+/**
+ * Is the label legible to a person of ordinary eyesight?
+ *
+ * A compliance check on the PRODUCT, not on the submission. Mandatory
+ * information must be "readily legible under ordinary conditions" (27 CFR
+ * 5.55), and the health warning must be readable by a person of ordinary
+ * eyesight (27 CFR 16.22). A pin-sharp photograph of a label whose warning is
+ * set in near-invisible type is a clear failure on the merits — and shrinking
+ * the warning is a known evasion rather than a hypothetical one.
+ *
+ * The distinction from image quality is the entire point. A bad photograph
+ * means we cannot judge and must ask for another; an illegible label means we
+ * have judged, and the answer is no. Reporting the second as the first would
+ * hand the applicant a request for a better photo of a label that will fail
+ * again for the same reason.
+ */
+function checkLegibility(extraction: LabelExtraction): CheckResult {
+  const id = "label_legibility";
+  const name = "Legibility to the Naked Eye";
+  const citation = "27 CFR 5.55, 16.22";
+  const legibility = extraction.labelLegibility;
+
+  /*
+   * Legibility cannot be assessed through a photograph too poor to read. Saying
+   * "the printing is too small" when the truth is "the picture is too blurred"
+   * blames the applicant's product for a fault in their camera.
+   */
+  if (!imageIsReviewable(extraction.imageQuality)) {
+    return {
+      id,
+      name,
+      category: "compliance",
+      verdict: "unreadable",
+      rule: "legibility-unassessable",
+      explanation:
+        "Whether the printing is legible cannot be judged from this photograph. Request a clearer image before drawing any conclusion about the label's design.",
+      citation,
+    };
+  }
+
+  /*
+   * Measurement outranks opinion.
+   *
+   * Where the reader supplied colours and a type height, the verdict is
+   * computed from them rather than taken from its judgement — because that
+   * judgement was measurably wrong. Shown a warning washed out to roughly 12%
+   * contrast, plainly unreadable to the eye, the reader reported it legible.
+   * Arithmetic on two colours does not have opinions.
+   */
+  const measured = extraction.governmentWarning?.appearance
+    ? measureLegibility(extraction.governmentWarning.appearance)
+    : null;
+
+  if (measured && (measured.effectivelyHidden || (measured.contrastTooLow && measured.typeTooSmall))) {
+    return {
+      id,
+      name,
+      category: "compliance",
+      verdict: "fail",
+      rule: "warning-below-measured-legibility",
+      explanation: `The health warning is not readily legible: ${measured.findings.join(", and ")}. This is a fault in how the label is printed, not in the photograph, so a clearer image will not resolve it.`,
+      citation,
+    };
+  }
+
+  if (measured && (measured.contrastTooLow || measured.typeTooSmall)) {
+    return {
+      id,
+      name,
+      category: "compliance",
+      verdict: "review",
+      rule: "warning-legibility-marginal",
+      explanation: `The health warning may not be readily legible: ${measured.findings.join(", and ")}. Please confirm by eye at actual container size.`,
+      citation,
+    };
+  }
+
+  if (legibility.belowOrdinaryEyesight) {
+    const detail = legibility.issues.length
+      ? ` Specifically: ${legibility.issues.join("; ")}.`
+      : "";
+    return {
+      id,
+      name,
+      category: "compliance",
+      verdict: "fail",
+      rule: "below-ordinary-eyesight",
+      explanation: `Mandatory information on this label is not readily legible to a person of ordinary eyesight under ordinary conditions.${detail} This is a fault in the label's printing, not in the photograph, so a clearer image will not resolve it.`,
+      confidence: legibility.score,
+      citation,
+    };
+  }
+
+  // Borderline: legible, but close enough to the line that a person should look.
+  if (legibility.score < 0.6) {
+    return {
+      id,
+      name,
+      category: "compliance",
+      verdict: "review",
+      rule: "legibility-marginal",
+      explanation: `The printing is readable but close to the limit of what is readily legible${legibility.issues.length ? ` (${legibility.issues.join("; ")})` : ""}. Please confirm by eye at actual container size.`,
+      confidence: legibility.score,
+      citation,
+    };
+  }
+
+  return {
+    id,
+    name,
+    category: "compliance",
+    verdict: "pass",
+    rule: "legible-to-ordinary-eyesight",
+    explanation:
+      "Mandatory information is printed large enough and with enough contrast to be read by a person of ordinary eyesight.",
+    confidence: legibility.score,
+    citation,
+  };
+}
+
 /** Country of origin, mandatory only for imported product. */
 function checkCountryOfOrigin(
   application: Application,
@@ -867,18 +1018,44 @@ export function verify(
     ...checkNetContents(application, extraction),
     checkBottler(application, extraction),
     checkCountryOfOrigin(application, extraction),
+    checkLegibility(extraction),
     ...checkGovernmentWarning(extraction),
   ];
 
   let { recommendation, headline } = summarise(checks);
+  let finalChecks = checks;
 
-  // A photograph too poor to review overrides any conclusion drawn from it.
-  // Reporting "approved" from an unreadable image would be the single most
-  // dangerous failure mode this system has.
-  if (extraction.imageQuality.tooPoorToReview) {
+  /*
+   * A photograph too poor to review invalidates every conclusion drawn from it,
+   * not merely the optimistic ones.
+   *
+   * The earlier version only downgraded the recommendation, which left the
+   * individual verdicts standing — so an unusable image still produced "bottler
+   * absent: FAIL" and "warning not prominent: FAIL". Neither is a finding. The
+   * bottler is not absent; it cannot be seen. Reporting those as failures
+   * manufactures an official-looking rejection out of a bad photograph, and
+   * would send a rejection letter to a compliant applicant.
+   *
+   * So when the image is not reviewable, every verdict is restated as
+   * unreadable. That is the only honest position: no finding, in either
+   * direction, survives an image we cannot read.
+   */
+  if (!imageIsReviewable(extraction.imageQuality)) {
     recommendation = "needs_review";
     headline =
       "This image is not clear enough to review. Request a better photograph from the applicant.";
+
+    finalChecks = checks.map((check) =>
+      check.verdict === "not_applicable"
+        ? check
+        : {
+            ...check,
+            verdict: "unreadable" as const,
+            rule: "image-not-reviewable",
+            explanation:
+              "No conclusion can be drawn about this item, because the photograph is not clear enough to read reliably.",
+          },
+    );
   }
 
   const warningReading = extraction.governmentWarning;
@@ -887,7 +1064,7 @@ export function verify(
   return {
     recommendation,
     headline,
-    checks,
+    checks: finalChecks,
     imageQuality: extraction.imageQuality,
     notes: extraction.notes,
     warningDiff: warningReading ? assessWarning(warningReading).diff : undefined,

@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "samples": "tsx scripts/make-samples.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:samples": "node scripts/verify-samples.mjs",
+    "compare:readers": "node --use-system-ca scripts/compare-readers.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",

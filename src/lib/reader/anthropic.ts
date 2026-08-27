@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { LabelExtraction } from "../ttb/types";
 import { EXTRACTION_PROMPT, labelExtractionSchema } from "./schema";
-import { ReaderError, type LabelReader, type ReadRequest, type ReadResult } from "./types";
+import { isReaderError, ReaderError, type LabelReader, type ReadRequest, type ReadResult } from "./types";
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
 
@@ -111,7 +111,7 @@ export class AnthropicReader implements LabelReader {
         },
       };
     } catch (error) {
-      if (error instanceof ReaderError) throw error;
+      if (isReaderError(error)) throw error;
       throw translate(error);
     }
   }

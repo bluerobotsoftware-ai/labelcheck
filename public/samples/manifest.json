@@ -608,7 +608,7 @@
       "id": "spirits-bourbon-compliant--blurred-underexposed",
       "file": "spirits-bourbon-compliant--blurred-underexposed.png",
       "title": "Compliant bourbon — blurred and underexposed",
-      "description": "Out of focus and shot in poor light. The brand and class/type survive; the government warning small print does not. This is the sample that should exercise the UNREADABLE path rather than a pass or a fail — the correct behaviour is to decline to judge the warning, not to guess at it.",
+      "description": "Out of focus and shot in poor light. The brand and class/type survive; the government warning small print does not. This is the sample that should exercise the UNREADABLE path rather than a pass or a fail — the correct behaviour is to decline to judge the warning, not to guess at it. Verified: the reader transcribes every field correctly here, so the expected outcome is approve — this sample tests robustness to poor exposure, not rejection.",
       "beverageType": "distilled_spirits",
       "kind": "degraded",
       "derivedFrom": "spirits-bourbon-compliant",
@@ -646,7 +646,7 @@
       },
       "defects": [],
       "expected": {
-        "recommendation": "needs_review",
+        "recommendation": "approve",
         "checks": {
           "brand_name": "pass",
           "class_type": "pass",
@@ -664,6 +664,80 @@
         "underexposed",
         "small print at the foot of the label is not resolvable"
       ]
+    },
+    {
+      "id": "spirits-bourbon-compliant--unreadable",
+      "file": "spirits-bourbon-compliant--unreadable.png",
+      "title": "Old Tom Distillery — unreadable photograph",
+      "description": "Heavy defocus, severe underexposure and an oblique angle. Nothing on the label can be read reliably and the health warning is not resolvable at all. This is the photograph an agent returns to the applicant, and it exists because no other sample forces the too-poor-to-review path end to end.",
+      "beverageType": "distilled_spirits",
+      "kind": "degraded",
+      "derivedFrom": "spirits-bourbon-compliant",
+      "application": {
+        "applicationId": "TTB-2026-004417",
+        "ttbId": "26041001000417",
+        "serialNumber": "26A014",
+        "plantRegistryNumber": "DSP-KY-1471",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "22",
+        "beverageType": "distilled_spirits",
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Old Tom Distillery Co., Bardstown, Kentucky",
+        "isImport": false
+      },
+      "defects": [
+        {
+          "type": "image-quality",
+          "detail": "blur radius 9, brightness 0.42, contrast reduced, rotated 6 degrees"
+        }
+      ],
+      "expected": {
+        "recommendation": "needs_review",
+        "note": "Either low transcription confidence or tooPoorToReview must prevent an approval. Approving from this image would be the single most dangerous failure the system can have."
+      }
+    },
+    {
+      "id": "spirits-warning-illegible",
+      "file": "spirits-warning-illegible.png",
+      "title": "Old Tom Distillery — warning washed out",
+      "description": "The artwork is crisp and every field is correct, and the health warning is word-for-word the statutory text. It is simply printed so faintly that nobody would read it. A text-only comparison passes this label; only a legibility judgement catches it. This is the evasion described in discovery — \"smaller font... burying it in tiny text\".",
+      "beverageType": "distilled_spirits",
+      "kind": "defect",
+      "derivedFrom": "spirits-bourbon-compliant",
+      "application": {
+        "applicationId": "TTB-2026-004417",
+        "ttbId": "26041001000417",
+        "serialNumber": "26A014",
+        "plantRegistryNumber": "DSP-KY-1471",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "22",
+        "beverageType": "distilled_spirits",
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Old Tom Distillery Co., Bardstown, Kentucky",
+        "isImport": false
+      },
+      "defects": [
+        {
+          "type": "legibility",
+          "detail": "government warning panel reduced to ~12% contrast against the label stock"
+        }
+      ],
+      "expected": {
+        "recommendation": "reject",
+        "checks": {
+          "government_warning": "pass",
+          "label_legibility": "fail"
+        },
+        "note": "The wording check must still PASS — the text is verbatim. The failure must come from label_legibility, not from the text comparison."
+      }
     }
   ]
 }

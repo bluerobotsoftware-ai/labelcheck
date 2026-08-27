@@ -53,6 +53,23 @@ const warningReading = z.object({
     .describe(
       "True if the warning is comfortably readable at the size shown. False if it is hidden in tiny type or has too little contrast against its background.",
     ),
+  appearance: z.object({
+    textColorHex: z
+      .string()
+      .describe(
+        'The colour of the warning TEXT itself as printed, as a hex value like "#3a3a35". Sample the ink, not the panel around it.',
+      ),
+    backgroundColorHex: z
+      .string()
+      .describe(
+        'The colour immediately BEHIND the warning text, as a hex value like "#f2eee1".',
+      ),
+    capHeightPercentOfLabel: z
+      .number()
+      .describe(
+        "Height of a capital letter in the warning, as a percentage of the whole label's height. A warning whose capitals are a hundredth of the label height is 1.",
+      ),
+  }),
 });
 
 /**
@@ -107,6 +124,25 @@ export const labelExtractionSchema = z.object({
         "True only if the image is so poor that a compliance decision cannot responsibly be made from it and a new photograph must be requested.",
       ),
   }),
+  labelLegibility: z.object({
+    score: z
+      .number()
+      .min(0)
+      .max(1)
+      .describe(
+        "How readable the label's mandatory information would be to a person of ordinary eyesight holding the actual container. Judge the PRINTING, not the photograph: assume the picture were perfect and ask whether the type is large enough and contrasted enough to read.",
+      ),
+    belowOrdinaryEyesight: z
+      .boolean()
+      .describe(
+        "True if mandatory information — especially the health warning — is printed too small or in too little contrast for a person of ordinary eyesight to read under ordinary conditions. Set this ONLY for a fault in the label's design, never because the photograph is poor.",
+      ),
+    issues: z
+      .array(z.string())
+      .describe(
+        'Specific legibility faults in the printing, e.g. "warning set in roughly 1mm type", "pale grey text on a white panel".',
+      ),
+  }),
   notes: z
     .array(z.string())
     .describe(
@@ -147,5 +183,10 @@ Rules:
 4. THE HEALTH WARNING NEEDS VISUAL DETAIL, NOT JUST TEXT. Report separately whether the words GOVERNMENT WARNING are in full capitals, whether that heading is in bolder type than the sentences after it, and whether the whole statement is comfortably legible rather than shrunk or low-contrast. Judge these from what you see, and transcribe the heading in its actual case.
 
 5. REPORT IMAGE PROBLEMS PLAINLY. If the photograph is angled, glared, blurred, cropped or badly lit, say so in the issues list. Set tooPoorToReview only when the image genuinely cannot support a compliance decision.
+
+6. KEEP TWO DIFFERENT PROBLEMS APART. "The photograph is bad" and "the label is printed illegibly" are separate findings with opposite consequences, and you must not merge them.
+   - imageQuality describes the PICTURE. A perfect label photographed badly scores low here.
+   - labelLegibility describes the PRINTING. Ask yourself: if this photograph were flawless, could a person of ordinary eyesight, holding the bottle in ordinary light, read the mandatory information — above all the health warning? A label whose warning is set in minute type or in barely-there contrast fails legibility even in a pin-sharp photograph.
+   If the picture is too poor to tell the difference, say so in imageQuality and leave belowOrdinaryEyesight false rather than guessing.
 
 Read the entire label, including small print around the edges and any text running vertically or around a curve.`;

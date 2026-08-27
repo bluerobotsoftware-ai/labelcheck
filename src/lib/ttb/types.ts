@@ -160,6 +160,8 @@ export interface LabelExtraction {
   governmentWarning: WarningReading | null;
   /** Model's assessment of whether the image is good enough to review at all. */
   imageQuality: ImageQuality;
+  /** Whether the label itself is legible to a person, regardless of the photo. */
+  labelLegibility: LabelLegibility;
   /** Anything the model saw that an agent should know about but that no rule covers. */
   notes: string[];
 }
@@ -178,6 +180,72 @@ export interface WarningReading extends FieldReading {
   headerIsBold: boolean;
   /** Is the warning legible at typical bottle size, or shrunk to hide it? */
   legibleSize: boolean;
+  /**
+   * Objective measurements of how the warning is printed.
+   *
+   * Asked for instead of a legibility opinion, because the opinion proved
+   * unreliable: shown a label whose warning had been washed out to roughly 12%
+   * contrast — plainly unreadable to the eye — the reader answered
+   * `legibleSize: true`. Models are far better at naming a colour they can see
+   * than at judging whether a person could read it, so the model supplies the
+   * quantities and `rules.ts` computes the verdict from them.
+   */
+  appearance?: WarningAppearance;
+}
+
+/**
+ * Whether the LABEL is legible, as distinct from whether the PHOTOGRAPH is.
+ *
+ * These are two different failures with opposite remedies and they must never
+ * be conflated:
+ *
+ *   - A bad photograph is the applicant's *submission* being inadequate. The
+ *     label may be perfect. Remedy: ask for a better picture. No finding can be
+ *     made about the label at all.
+ *
+ *   - An illegible label is the *product* being non-compliant. The photograph
+ *     may be pin-sharp. Mandatory information must be "readily legible under
+ *     ordinary conditions" (27 CFR 5.55), and the health warning must be
+ *     readable by a person of ordinary eyesight (27 CFR 16.22). Type set too
+ *     small, or in too little contrast against its background, fails on the
+ *     merits. Remedy: reject and require a redesign.
+ *
+ * Shrinking the warning into near-invisible type is a known evasion — "smaller
+ * font... burying it in tiny text" — so this cannot be folded into image
+ * quality, or the tactic it exists to catch would read as a photography problem.
+ */
+export interface LabelLegibility {
+  /**
+   * 0-1. How readable the label's mandatory information is to a person of
+   * ordinary eyesight holding the container, judged as if the photograph were
+   * perfect. Low values mean the LABEL is at fault, not the picture.
+   */
+  score: number;
+  /**
+   * True when mandatory information would not be readily legible to a person of
+   * ordinary eyesight under ordinary conditions.
+   */
+  belowOrdinaryEyesight: boolean;
+  /** e.g. ["warning set in roughly 1mm type", "grey text on a grey panel"] */
+  issues: string[];
+}
+
+/**
+ * Measured properties of the printed warning, from which legibility is computed
+ * deterministically rather than judged.
+ */
+export interface WarningAppearance {
+  /** Colour of the warning text as printed, e.g. #8a8a80. */
+  textColorHex: string;
+  /** Colour immediately behind the warning text, e.g. #f0ece0. */
+  backgroundColorHex: string;
+  /**
+   * Height of a capital letter in the warning, as a percentage of the label's
+   * full height. A proxy for physical type size: 27 CFR 16.22 prescribes
+   * millimetres, which no photograph can establish, but relative height is
+   * measurable and scales with the container.
+   */
+  capHeightPercentOfLabel: number;
 }
 
 export interface ImageQuality {

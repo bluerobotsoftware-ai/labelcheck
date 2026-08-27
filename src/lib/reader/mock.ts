@@ -38,8 +38,14 @@ export const COMPLIANT_SPIRITS: LabelExtraction = {
     headerIsAllCaps: true,
     headerIsBold: true,
     legibleSize: true,
+    appearance: {
+      textColorHex: "#2b2b26",
+      backgroundColorHex: "#efeadc",
+      capHeightPercentOfLabel: 1.1,
+    },
   },
   imageQuality: { score: 0.96, issues: [], tooPoorToReview: false },
+  labelLegibility: { score: 0.95, belowOrdinaryEyesight: false, issues: [] },
   notes: [],
 };
 

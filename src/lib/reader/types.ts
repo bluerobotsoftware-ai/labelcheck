@@ -29,8 +29,15 @@ export interface ReadResult {
   elapsedMs: number;
   /** Identifies the implementation and model, e.g. "anthropic:claude-opus-5". */
   reader: string;
-  /** Token usage where the provider reports it; for cost visibility only. */
-  usage?: { inputTokens?: number; outputTokens?: number };
+  /**
+   * Token usage where the provider reports it, for cost and latency visibility.
+   *
+   * `thinkingTokens` earns its place: reasoning is invisible in the output yet
+   * dominates response time, so when a transcription call is unexpectedly slow
+   * this number answers "is the model thinking, or is it the network?" without
+   * guesswork. On this task it should be small.
+   */
+  usage?: { inputTokens?: number; outputTokens?: number; thinkingTokens?: number };
 }
 
 export interface LabelReader {
@@ -50,6 +57,19 @@ export interface LabelReader {
  * compliance agent rather than a developer, because it is surfaced in the UI.
  */
 export class ReaderError extends Error {
+  /**
+   * Discriminant, checked by `isReaderError` instead of `instanceof`.
+   *
+   * A bundler that loads this module twice — via a barrel re-export and via a
+   * direct import — produces two distinct class identities, and `instanceof`
+   * then silently returns false for a perfectly good ReaderError. That is not
+   * hypothetical: it swallowed a "this model is no longer available" 404 and
+   * reported it to the operator as "usually a network or firewall problem",
+   * sending them to debug a firewall over a one-word config change. A property
+   * check cannot fail that way.
+   */
+  readonly isReaderError = true as const;
+
   constructor(
     message: string,
     readonly options: {
@@ -63,4 +83,13 @@ export class ReaderError extends Error {
     super(message);
     this.name = "ReaderError";
   }
+}
+
+/** Identity check that survives duplicate module instances. */
+export function isReaderError(error: unknown): error is ReaderError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as ReaderError).isReaderError === true
+  );
 }

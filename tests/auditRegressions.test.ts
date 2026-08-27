@@ -255,3 +255,153 @@ describe("finding 11 — two absences are not a match", () => {
     expect(ladderMatch("Stone's Throw", "STONE’S THROW").matched).toBe(true);
   });
 });
+
+/**
+ * The hallucinated-warning defence.
+ *
+ * Found by running the real pipeline against a deliberately unreadable
+ * photograph — heavy defocus, severe underexposure, oblique angle — in which
+ * the health warning is not visible at all.
+ *
+ * The reader returned `tooPoorToReview: false`, a quality score of 0.4, and the
+ * complete statutory warning text "verbatim" at 50% confidence. It had not read
+ * it; it supplied it from expectation, because it knows what a bourbon label
+ * says. The engine then reported `warning-verbatim: pass`.
+ *
+ * A hallucinated compliance PASS is the worst output this system can produce,
+ * and the rules were not at fault — they reasoned correctly about fabricated
+ * input. The defence has to sit at the boundary.
+ */
+describe("an unreadable photograph yields no findings at all", () => {
+  const UNREADABLE = {
+    score: 0.4,
+    issues: ["dark image", "blurry", "low contrast"],
+    tooPoorToReview: false,
+  };
+
+  it("does not approve, whatever the reader claims it saw", () => {
+    const report = verify(APP, label({ imageQuality: UNREADABLE }), META);
+    expect(report.recommendation).toBe("needs_review");
+    expect(report.headline).toMatch(/not clear enough/i);
+  });
+
+  it("does not pass the warning as verbatim from an unreadable image", () => {
+    // The exact hallucination observed: full statutory text, 50% confidence.
+    const report = verify(
+      APP,
+      label({
+        imageQuality: UNREADABLE,
+        governmentWarning: {
+          text: STATUTORY_WARNING,
+          confidence: 0.5,
+          headerIsAllCaps: true,
+          headerIsBold: true,
+          legibleSize: true,
+        },
+      }),
+      META,
+    );
+    const warning = find(report.checks, "government_warning");
+    expect(warning.verdict).toBe("unreadable");
+    expect(warning.rule).toBe("image-not-reviewable");
+  });
+
+  it("does not manufacture a rejection either", () => {
+    // A missing bottler on an unusable photograph is not "absent" — it is
+    // unseen. Reporting it as a failure sends a rejection letter to a
+    // compliant applicant.
+    const report = verify(
+      APP,
+      label({ imageQuality: UNREADABLE, bottlerName: null }),
+      META,
+    );
+    expect(report.recommendation).toBe("needs_review");
+    expect(report.checks.some((c) => c.verdict === "fail")).toBe(false);
+  });
+
+  it("leaves not-applicable checks alone", () => {
+    // Country of origin on a domestic product is not unreadable; it is simply
+    // not required, and that stays true whatever the photograph looks like.
+    const report = verify(APP, label({ imageQuality: UNREADABLE }), META);
+    expect(find(report.checks, "country_of_origin").verdict).toBe("not_applicable");
+  });
+
+  it("still reviews a merely imperfect photograph normally", () => {
+    // The gate must not swallow legitimate findings from usable images.
+    const report = verify(
+      APP,
+      label({
+        imageQuality: { score: 0.85, issues: ["slightly blurry"], tooPoorToReview: false },
+      }),
+      META,
+    );
+    expect(report.recommendation).toBe("approve");
+  });
+});
+
+/**
+ * Legibility to the naked eye — 27 CFR 5.55, 16.22.
+ *
+ * A compliance check on the PRODUCT, kept deliberately separate from image
+ * quality, which is a check on the SUBMISSION. The two have opposite remedies:
+ * a bad photograph means "send us a better picture", an illegible label means
+ * "redesign the label". Conflating them tells an applicant to re-photograph a
+ * label that will fail again for exactly the same reason.
+ */
+describe("legibility to a person of ordinary eyesight", () => {
+  const illegible = {
+    score: 0.2,
+    belowOrdinaryEyesight: true,
+    issues: ["warning set in roughly 1mm type", "pale grey text on a white panel"],
+  };
+
+  it("fails a sharp photograph of an illegibly printed label", () => {
+    const report = verify(APP, label({ labelLegibility: illegible }), META);
+    const check = find(report.checks, "label_legibility");
+    expect(check.verdict).toBe("fail");
+    expect(check.rule).toBe("below-ordinary-eyesight");
+    expect(report.recommendation).toBe("reject");
+  });
+
+  it("says plainly that a better photograph will not help", () => {
+    // The message an agent forwards to the applicant has to distinguish the
+    // two failures, or the applicant fixes the wrong thing.
+    const report = verify(APP, label({ labelLegibility: illegible }), META);
+    expect(find(report.checks, "label_legibility").explanation).toMatch(
+      /not in the photograph|clearer image will not/i,
+    );
+  });
+
+  it("passes a normally printed label", () => {
+    expect(find(verify(APP, label(), META).checks, "label_legibility").verdict).toBe(
+      "pass",
+    );
+  });
+
+  it("sends a marginal label to a human rather than failing it", () => {
+    const report = verify(
+      APP,
+      label({
+        labelLegibility: { score: 0.45, belowOrdinaryEyesight: false, issues: ["small type"] },
+      }),
+      META,
+    );
+    expect(find(report.checks, "label_legibility").verdict).toBe("review");
+  });
+
+  it("declines to judge printing through an unusable photograph", () => {
+    // Blaming the label's design for a fault in the camera is the error this
+    // guards against.
+    const report = verify(
+      APP,
+      label({
+        imageQuality: { score: 0.3, issues: ["out of focus"], tooPoorToReview: false },
+        labelLegibility: illegible,
+      }),
+      META,
+    );
+    const check = find(report.checks, "label_legibility");
+    expect(check.verdict).toBe("unreadable");
+    expect(check.rule).toBe("image-not-reviewable");
+  });
+});

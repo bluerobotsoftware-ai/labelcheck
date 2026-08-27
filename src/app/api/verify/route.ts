@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { selectReader } from "@/lib/reader";
-import { ReaderError } from "@/lib/reader/types";
+import { isReaderError } from "@/lib/reader/types";
 import { verify } from "@/lib/ttb/rules";
 import type { Application, BeverageType } from "@/lib/ttb/types";
 import { clientKey, rateLimit } from "@/lib/ratelimit";
@@ -161,7 +161,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       usage: result.usage,
     });
   } catch (error) {
-    if (error instanceof ReaderError) {
+    if (isReaderError(error)) {
       return NextResponse.json(
         {
           error: "reader_failed",
