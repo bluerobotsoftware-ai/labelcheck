@@ -132,10 +132,6 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
     <div className="space-y-8">
       {!hasRealReader && <DemoModeWarning />}
 
-      {samples.length > 0 && (
-        <SamplePicker samples={samples} onPick={loadSample} />
-      )}
-
       <div className="grid gap-8 lg:grid-cols-2">
         <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-6">
           <h2 className="text-xl font-bold">1. What the application says</h2>
@@ -182,6 +178,15 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
         )}
         {status.phase === "working" && <ElapsedTimer startedAt={status.startedAt} />}
       </section>
+
+      {/*
+        Below the action, not above it. The samples are a way to try the tool,
+        not a step in using it — an agent with a real application in front of
+        them should reach the form and the button without scrolling past a demo.
+      */}
+      {samples.length > 0 && (
+        <SamplePicker samples={samples} onPick={loadSample} />
+      )}
 
       <div ref={resultRef} tabIndex={-1} className="outline-none">
         {status.phase === "error" && (
