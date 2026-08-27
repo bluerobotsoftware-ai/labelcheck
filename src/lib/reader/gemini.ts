@@ -96,17 +96,18 @@ const RESPONSE_SCHEMA = {
         headerIsAllCaps: { type: "BOOLEAN" },
         headerIsBold: { type: "BOOLEAN" },
         legibleSize: { type: "BOOLEAN" },
-        appearance: {
+        bounds: {
           type: "OBJECT",
           properties: {
-            textColorHex: { type: "STRING" },
-            backgroundColorHex: { type: "STRING" },
-            capHeightPercentOfLabel: { type: "NUMBER" },
+            x: { type: "NUMBER" },
+            y: { type: "NUMBER" },
+            width: { type: "NUMBER" },
+            height: { type: "NUMBER" },
           },
-          required: ["textColorHex", "backgroundColorHex", "capHeightPercentOfLabel"],
+          required: ["x", "y", "width", "height"],
         },
       },
-      required: ["text", "confidence", "headerIsAllCaps", "headerIsBold", "legibleSize", "appearance"],
+      required: ["text", "confidence", "headerIsAllCaps", "headerIsBold", "legibleSize", "bounds"],
     },
     imageQuality: {
       type: "OBJECT",

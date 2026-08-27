@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   contrastRatio,
-  measureLegibility,
   parseHexColor,
   relativeLuminance,
+  HIDDEN_WARNING_CONTRAST,
   MIN_WARNING_CONTRAST,
 } from "@/lib/ttb/contrast";
+import { measureWarningContrast } from "@/lib/ttb/pixelContrast";
 
 /**
  * Legibility is computed, not judged.
@@ -70,81 +72,69 @@ describe("contrastRatio", () => {
   });
 });
 
-describe("measureLegibility", () => {
-  const wellPrinted = {
-    textColorHex: "#2b2b26",
-    backgroundColorHex: "#efeadc",
-    capHeightPercentOfLabel: 1.1,
-  };
+/**
+ * The property that matters most about the pixel measurement: it is stable.
+ *
+ * The mechanism this replaced was not. Asked for the warning's two colours, the
+ * reader sampled a slightly different pixel on each call, and the same
+ * washed-out label produced approve, reject, reject, approve across four
+ * consecutive runs against production. The rules engine advertises "same input,
+ * same report" — a promise worth nothing if the input is a coin flip, and worse
+ * than nothing in a compliance tool, where the flakiness reaches an applicant
+ * as arbitrariness rather than as a bug.
+ *
+ * These run against the real sample images, with no network and no model.
+ */
+describe("pixel-measured contrast", () => {
+  const WARNING_BOUNDS = { x: 0.08, y: 0.86, width: 0.84, height: 0.09 };
 
-  it("passes a normally printed warning", () => {
-    const measured = measureLegibility(wellPrinted);
-    expect(measured.contrastTooLow).toBe(false);
-    expect(measured.typeTooSmall).toBe(false);
-    expect(measured.findings).toHaveLength(0);
-    expect(measured.contrast).toBeGreaterThan(MIN_WARNING_CONTRAST);
+  const read = (name: string) =>
+    readFileSync(new URL(`../public/samples/${name}`, import.meta.url));
+
+  it("returns the identical figure every time for one image", async () => {
+    const image = read("spirits-bourbon-compliant.png");
+    const runs = await Promise.all(
+      Array.from({ length: 5 }, () => measureWarningContrast(image, WARNING_BOUNDS)),
+    );
+    const values = runs.map((r) => r?.contrast);
+    expect(values.every((v) => v === values[0])).toBe(true);
+    expect(values[0]).toBeDefined();
   });
 
-  /**
-   * The real measurement from the washed-out sample: the model reported this
-   * warning as legible, and the arithmetic disagreed.
-   */
-  it("catches a warning washed out to near-invisibility", () => {
-    const measured = measureLegibility({
-      textColorHex: "#c9c6bb",
-      backgroundColorHex: "#f4f1e6",
-      capHeightPercentOfLabel: 0.9,
-    });
-    expect(measured.contrastTooLow).toBe(true);
-    expect(measured.contrast).toBeLessThan(2);
-    expect(measured.effectivelyHidden).toBe(true);
-    expect(measured.findings.join(" ")).toMatch(/contrast/i);
+  it("rates a normally printed warning as comfortably readable", async () => {
+    const measured = await measureWarningContrast(
+      read("spirits-bourbon-compliant.png"),
+      WARNING_BOUNDS,
+    );
+    expect(measured).not.toBeNull();
+    expect(measured!.contrast).toBeGreaterThan(MIN_WARNING_CONTRAST);
   });
 
-  /**
-   * Cap height is measured but never decides, and this test pins that.
-   *
-   * Asked for a percentage, the reader returns a fraction — 0.01 for an
-   * ordinary warning — and no wording of the schema changed it. As a standalone
-   * trigger it flagged five of eight compliant sample labels. A check that
-   * cries wolf on good labels teaches agents to dismiss it, and then it fails
-   * silently on the one that mattered. Contrast decides; this corroborates.
-   */
-  it("notes small type but does not flag it on its own", () => {
-    const measured = measureLegibility({ ...wellPrinted, capHeightPercentOfLabel: 0.3 });
-    expect(measured.typeTooSmall).toBe(true);
-    // Well-contrasted, so nothing is reported to the agent.
-    expect(measured.contrastTooLow).toBe(false);
-    expect(measured.findings).toHaveLength(0);
+  it("catches the washed-out warning the model called legible", async () => {
+    const measured = await measureWarningContrast(
+      read("spirits-warning-illegible.png"),
+      WARNING_BOUNDS,
+    );
+    expect(measured).not.toBeNull();
+    expect(measured!.contrast).toBeLessThan(HIDDEN_WARNING_CONTRAST);
   });
 
-  it("mentions small type only when contrast has already failed", () => {
-    const measured = measureLegibility({
-      textColorHex: "#c9c6bb",
-      backgroundColorHex: "#f4f1e6",
-      capHeightPercentOfLabel: 0.3,
-    });
-    expect(measured.findings.join(" ")).toMatch(/contrast/i);
-    expect(measured.findings.join(" ")).toMatch(/small/i);
+  it("separates the two labels by a wide margin, not a hair", async () => {
+    // A threshold only means something if the populations are actually apart.
+    const good = await measureWarningContrast(read("spirits-bourbon-compliant.png"), WARNING_BOUNDS);
+    const bad = await measureWarningContrast(read("spirits-warning-illegible.png"), WARNING_BOUNDS);
+    expect(good!.contrast / bad!.contrast).toBeGreaterThan(3);
   });
 
-  it("draws no conclusion when the reader reported no measurements", () => {
-    // Silence must never be read as a failure — that would manufacture
-    // rejections out of a reader that simply did not answer.
-    const measured = measureLegibility({});
-    expect(measured.contrast).toBeNull();
-    expect(measured.contrastTooLow).toBe(false);
-    expect(measured.typeTooSmall).toBe(false);
-    expect(measured.findings).toHaveLength(0);
+  it("returns null rather than a number it cannot justify", async () => {
+    // Off-image and degenerate boxes must not yield a confident ratio.
+    const image = read("spirits-bourbon-compliant.png");
+    expect(await measureWarningContrast(image, { x: 0, y: 0, width: 0, height: 0 })).toBeNull();
+    expect(await measureWarningContrast(image, { x: 2, y: 2, width: 1, height: 1 })).toBeNull();
   });
 
-  it("quotes the measured figure so an agent can cite it", () => {
-    // "Not legible" is unusable in a rejection letter; "1.6:1" is not.
-    const measured = measureLegibility({
-      textColorHex: "#c9c6bb",
-      backgroundColorHex: "#f4f1e6",
-      capHeightPercentOfLabel: 1.1,
-    });
-    expect(measured.findings.join(" ")).toMatch(/\d+\.\d+:1/);
+  it("survives bytes that are not an image at all", async () => {
+    const junk = Buffer.from("this is not a picture");
+    expect(await measureWarningContrast(junk, WARNING_BOUNDS)).toBeNull();
   });
 });

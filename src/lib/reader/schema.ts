@@ -53,23 +53,16 @@ const warningReading = z.object({
     .describe(
       "True if the warning is comfortably readable at the size shown. False if it is hidden in tiny type or has too little contrast against its background.",
     ),
-  appearance: z.object({
-    textColorHex: z
-      .string()
-      .describe(
-        'The colour of the warning TEXT itself as printed, as a hex value like "#3a3a35". Sample the ink, not the panel around it.',
-      ),
-    backgroundColorHex: z
-      .string()
-      .describe(
-        'The colour immediately BEHIND the warning text, as a hex value like "#f2eee1".',
-      ),
-    capHeightPercentOfLabel: z
-      .number()
-      .describe(
-        "Height of a capital letter in the warning, as a percentage of the whole label's height. A warning whose capitals are a hundredth of the label height is 1.",
-      ),
-  }),
+  bounds: z
+    .object({
+      x: z.number().describe("Left edge of the warning block, as a fraction of the image width (0 = far left, 1 = far right)."),
+      y: z.number().describe("Top edge, as a fraction of the image height."),
+      width: z.number().describe("Width of the warning block, as a fraction of the image width."),
+      height: z.number().describe("Height of the warning block, as a fraction of the image height."),
+    })
+    .describe(
+      "A tight rectangle around the health warning paragraph. Include the text only, not the whole panel or the label border. The contrast is measured from the pixels inside this box, so a snug box matters more than a pretty one.",
+    ),
 });
 
 /**

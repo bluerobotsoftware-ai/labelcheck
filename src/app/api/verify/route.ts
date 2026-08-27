@@ -14,7 +14,8 @@ import { NextResponse } from "next/server";
 import { selectReader } from "@/lib/reader";
 import { isReaderError } from "@/lib/reader/types";
 import { verify } from "@/lib/ttb/rules";
-import type { Application, BeverageType } from "@/lib/ttb/types";
+import type { Application, BeverageType, LabelExtraction } from "@/lib/ttb/types";
+import { measureWarningContrast } from "@/lib/ttb/pixelContrast";
 import { clientKey, rateLimit } from "@/lib/ratelimit";
 
 /** Node runtime: the Anthropic SDK and Buffer are not available on the edge. */
@@ -147,7 +148,21 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const result = await reader.read({ image, mimeType: actualType });
-    const report = verify(application, result.extraction, {
+
+    /*
+     * Measure the warning's contrast from the actual pixels before the rules
+     * run.
+     *
+     * The reader is asked only WHERE the warning is. Asking it for the two
+     * colours and computing the ratio from those worked until the same image
+     * was submitted four times and produced approve, reject, reject, approve —
+     * it samples a slightly different pixel each run, and near a threshold that
+     * flips the verdict. The rules engine is deterministic and says so; feeding
+     * it a coin flip made that promise false.
+     */
+    const extraction = await withMeasuredContrast(result.extraction, image);
+
+    const report = verify(application, extraction, {
       extractionMs: result.elapsedMs,
       reader: result.reader,
     });
@@ -236,6 +251,36 @@ function text(value: unknown, fieldName: string): string | undefined {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Attach a pixel-measured contrast ratio to the warning, where possible.
+ *
+ * Returns the extraction unchanged when there is no warning, no bounds, or the
+ * region cannot be measured. Absence of a measurement must never read as a
+ * pass: `rules.ts` simply falls back to the checks that do not depend on it.
+ */
+async function withMeasuredContrast(
+  extraction: LabelExtraction,
+  image: Buffer,
+): Promise<LabelExtraction> {
+  const warning = extraction.governmentWarning;
+  if (!warning?.bounds) return extraction;
+
+  const measured = await measureWarningContrast(image, warning.bounds);
+  if (!measured) return extraction;
+
+  return {
+    ...extraction,
+    governmentWarning: {
+      ...warning,
+      appearance: {
+        measuredContrast: measured.contrast,
+        textColorHex: measured.darkerHex,
+        backgroundColorHex: measured.lighterHex,
+      },
+    },
+  };
 }
 
 /**

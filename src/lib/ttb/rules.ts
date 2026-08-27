@@ -15,7 +15,7 @@
 
 import { parseAlcohol, proofIsConsistent, toleranceFor } from "./abv";
 import { checkStandardOfFill, formatVolume, parseVolume } from "./netContents";
-import { measureLegibility } from "./contrast";
+import { HIDDEN_WARNING_CONTRAST, MIN_WARNING_CONTRAST } from "./contrast";
 import { canonicalTokens, ladderMatch } from "./normalize";
 import { combinedSimilarity, containsAllTokens } from "./similarity";
 import type {
@@ -828,33 +828,31 @@ function checkLegibility(extraction: LabelExtraction): CheckResult {
    * contrast, plainly unreadable to the eye, the reader reported it legible.
    * Arithmetic on two colours does not have opinions.
    */
-  const measured = extraction.governmentWarning?.appearance
-    ? measureLegibility(extraction.governmentWarning.appearance)
-    : null;
+  const measured = extraction.governmentWarning?.appearance ?? null;
 
   // Contrast alone decides. Cap height is corroborating detail only — as a
   // trigger it flagged every compliant label in the sample set, because the
   // reader reports the figure in a unit of its own choosing.
-  if (measured && measured.effectivelyHidden) {
+  if (measured && measured.measuredContrast < HIDDEN_WARNING_CONTRAST) {
     return {
       id,
       name,
       category: "compliance",
       verdict: "fail",
       rule: "warning-below-measured-legibility",
-      explanation: `The health warning is not readily legible: ${measured.findings.join(", and ")}. This is a fault in how the label is printed, not in the photograph, so a clearer image will not resolve it.`,
+      explanation: `The health warning is not readily legible: it is printed at ${measured.measuredContrast.toFixed(1)}:1 contrast against its background (${measured.textColorHex} on ${measured.backgroundColorHex}), far below the ${MIN_WARNING_CONTRAST}:1 generally accepted as readable. Measured from the image itself. This is a fault in how the label is printed, not in the photograph, so a clearer image will not resolve it.`,
       citation,
     };
   }
 
-  if (measured && measured.contrastTooLow) {
+  if (measured && measured.measuredContrast < MIN_WARNING_CONTRAST) {
     return {
       id,
       name,
       category: "compliance",
       verdict: "review",
       rule: "warning-legibility-marginal",
-      explanation: `The health warning may not be readily legible: ${measured.findings.join(", and ")}. Please confirm by eye at actual container size.`,
+      explanation: `The health warning may not be readily legible: it is printed at ${measured.measuredContrast.toFixed(1)}:1 contrast against its background, below the ${MIN_WARNING_CONTRAST}:1 generally accepted as readable. Please confirm by eye at actual container size.`,
       citation,
     };
   }

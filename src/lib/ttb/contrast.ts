@@ -1,20 +1,12 @@
 /**
- * Contrast and type-size measurement for the health warning.
+ * Colour arithmetic for the health-warning legibility check.
  *
- * Why this file exists, in one sentence: the model said a warning washed out to
- * roughly 12% contrast was legible, so legibility stopped being something we ask
- * the model and became something we compute.
+ * These are the primitives. The measurement that uses them lives in
+ * pixelContrast.ts, which samples the image's own pixels — see the note at the
+ * top of that file for why asking the model for colours was abandoned.
  *
- * The division of labour is the same one the whole product rests on. The model
- * reports what it can see and is good at — the colour of the text, the colour
- * behind it, how tall the letters are relative to the label. Deterministic code
- * turns those into a verdict. A contrast ratio is arithmetic; whether a person
- * can read something is a judgement, and the arithmetic is the auditable half.
- *
- * The regulation prescribes physical millimetres and characters per inch
- * (27 CFR 16.22), which no photograph can establish without a known scale. The
- * relative measurements here are an honest approximation of that, and are
- * documented as such rather than presented as compliance measurement.
+ * The threshold constants below are the policy: what counts as legible, stated
+ * once, with the standard it comes from named so it can be argued with.
  */
 
 /** Parse "#rrggbb" or "rrggbb" into 0-255 channels. Returns null if unparseable. */
@@ -93,83 +85,3 @@ export const MIN_WARNING_CONTRAST = 4.5;
  * merely marginal. Around this level text is effectively invisible at a glance.
  */
 export const HIDDEN_WARNING_CONTRAST = 2.0;
-
-/**
- * Minimum cap height, as a percentage of the label's height.
- *
- * ADVISORY ONLY. This never decides a verdict on its own — see the note below.
- *
- * 27 CFR 16.22 sets type size in millimetres against container volume, which no
- * photograph can establish without a physical scale, so this was always a proxy:
- * on a 750ml label around 100mm tall, 1mm of cap height is roughly 1%.
- *
- * Measuring it turned out not to work. Asked for a percentage, the reader
- * returned 0.01 and 0.02 for perfectly ordinary warnings — reporting a fraction
- * regardless of how the field was described. Every compliant sample tripped the
- * threshold. A check that flags five out of eight good labels does not protect
- * anyone; it teaches agents to dismiss the flag, and then it fails silently on
- * the one that mattered.
- *
- * Contrast has no such problem, because it derives from two colours the model
- * can simply look at, and the arithmetic is fixed. So contrast decides, and cap
- * height only ever corroborates a contrast failure. Better a narrow check that
- * works than a broad one nobody trusts.
- */
-export const MIN_CAP_HEIGHT_PERCENT = 0.7;
-
-export interface LegibilityMeasurement {
-  /** Computed contrast ratio, or null when colours were not reported. */
-  contrast: number | null;
-  capHeightPercent: number | null;
-  /** True when contrast is measurably below the readable threshold. */
-  contrastTooLow: boolean;
-  /** True when contrast is so low the text is effectively hidden. */
-  effectivelyHidden: boolean;
-  /** True when the type is measurably smaller than the proxy threshold. */
-  typeTooSmall: boolean;
-  /** Human-readable findings, phrased for a compliance agent. */
-  findings: string[];
-}
-
-/** Measure a warning's printed appearance. Reports; decides nothing. */
-export function measureLegibility(appearance: {
-  textColorHex?: string;
-  backgroundColorHex?: string;
-  capHeightPercentOfLabel?: number;
-}): LegibilityMeasurement {
-  const contrast = contrastRatio(appearance.textColorHex, appearance.backgroundColorHex);
-  const capHeightPercent =
-    typeof appearance.capHeightPercentOfLabel === "number" &&
-    Number.isFinite(appearance.capHeightPercentOfLabel)
-      ? appearance.capHeightPercentOfLabel
-      : null;
-
-  const contrastTooLow = contrast !== null && contrast < MIN_WARNING_CONTRAST;
-  const effectivelyHidden = contrast !== null && contrast < HIDDEN_WARNING_CONTRAST;
-  const typeTooSmall =
-    capHeightPercent !== null && capHeightPercent < MIN_CAP_HEIGHT_PERCENT;
-
-  const findings: string[] = [];
-  if (contrast !== null && contrastTooLow) {
-    findings.push(
-      `the warning is printed at ${contrast.toFixed(1)}:1 contrast against its background, below the ${MIN_WARNING_CONTRAST}:1 generally accepted as readable`,
-    );
-  }
-  // Reported only alongside a contrast failure, never on its own. See the note
-  // on MIN_CAP_HEIGHT_PERCENT: as a standalone trigger this produced a false
-  // positive on every compliant label in the sample set.
-  if (typeTooSmall && contrastTooLow && capHeightPercent !== null) {
-    findings.push(
-      "the type also appears small relative to the rest of the label",
-    );
-  }
-
-  return {
-    contrast,
-    capHeightPercent,
-    contrastTooLow,
-    effectivelyHidden,
-    typeTooSmall,
-    findings,
-  };
-}

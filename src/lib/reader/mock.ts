@@ -38,10 +38,11 @@ export const COMPLIANT_SPIRITS: LabelExtraction = {
     headerIsAllCaps: true,
     headerIsBold: true,
     legibleSize: true,
+    bounds: { x: 0.08, y: 0.86, width: 0.84, height: 0.09 },
     appearance: {
+      measuredContrast: 11.2,
       textColorHex: "#2b2b26",
       backgroundColorHex: "#efeadc",
-      capHeightPercentOfLabel: 1.1,
     },
   },
   imageQuality: { score: 0.96, issues: [], tooPoorToReview: false },

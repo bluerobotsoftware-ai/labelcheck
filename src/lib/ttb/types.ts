@@ -190,6 +190,9 @@ export interface WarningReading extends FieldReading {
    * than at judging whether a person could read it, so the model supplies the
    * quantities and `rules.ts` computes the verdict from them.
    */
+  /** Where the warning sits, as fractions of the image. Supplied by the reader. */
+  bounds?: { x: number; y: number; width: number; height: number };
+  /** Measured server-side from the pixels inside . Never model-reported. */
   appearance?: WarningAppearance;
 }
 
@@ -235,17 +238,20 @@ export interface LabelLegibility {
  * deterministically rather than judged.
  */
 export interface WarningAppearance {
-  /** Colour of the warning text as printed, e.g. #8a8a80. */
-  textColorHex: string;
-  /** Colour immediately behind the warning text, e.g. #f0ece0. */
-  backgroundColorHex: string;
   /**
-   * Height of a capital letter in the warning, as a percentage of the label's
-   * full height. A proxy for physical type size: 27 CFR 16.22 prescribes
-   * millimetres, which no photograph can establish, but relative height is
-   * measurable and scales with the container.
+   * Contrast ratio between the warning text and its background, measured from
+   * the image's own pixels — not reported by the model.
+   *
+   * The model is asked only where the warning is. Asking it for the two colours
+   * worked until the same image was run four times and produced approve,
+   * reject, reject, approve: it samples a slightly different pixel each time,
+   * and near a threshold that flips the verdict. A deterministic engine fed a
+   * non-deterministic input is not deterministic.
    */
-  capHeightPercentOfLabel: number;
+  measuredContrast: number;
+  /** The two colours the measurement separated, for showing an agent. */
+  textColorHex: string;
+  backgroundColorHex: string;
 }
 
 export interface ImageQuality {
