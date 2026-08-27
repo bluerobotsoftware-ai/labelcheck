@@ -1,0 +1,669 @@
+{
+  "schemaVersion": 1,
+  "generator": "scripts/make-samples.ts",
+  "note": "Fixture set for the TTB label verification prototype. `application` is the typed-in half of the COLA application; `labelText` is ground truth for what the artwork actually prints (null means deliberately absent); `expected` is the verdict a correct implementation must reach. Check ids in `expected.checks` correspond to CheckResult.id in src/lib/ttb/rules.ts. Check ids match CheckResult.id in src/lib/ttb/rules.ts; see tests/samples.test.ts.",
+  "canonicalWarning": {
+    "header": "GOVERNMENT WARNING:",
+    "body": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+    "citation": "27 CFR 16.21"
+  },
+  "samples": [
+    {
+      "id": "spirits-bourbon-compliant",
+      "file": "spirits-bourbon-compliant.png",
+      "title": "Old Tom Distillery — compliant bourbon",
+      "description": "Fully compliant distilled spirits label. Every application field is present on the artwork and the government warning is verbatim. This is the reference sample the degraded variants are derived from.",
+      "beverageType": "distilled_spirits",
+      "kind": "base",
+      "width": 800,
+      "height": 1000,
+      "bytes": 138170,
+      "application": {
+        "applicationId": "TTB-2026-004417",
+        "ttbId": "26041001000417",
+        "serialNumber": "26A014",
+        "plantRegistryNumber": "DSP-KY-1471",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "22",
+        "beverageType": "distilled_spirits",
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Old Tom Distillery Co., Bardstown, Kentucky",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "BOTTLED BY OLD TOM DISTILLERY CO., BARDSTOWN, KENTUCKY",
+        "otherText": [
+          "Small Batch — Barrel No. 118"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "approve",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "All match checks agree and the mandatory warning is complete and correctly capitalised.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "wine-compliant",
+      "file": "wine-compliant.png",
+      "title": "Hollow Creek Vineyards — compliant wine",
+      "description": "Compliant wine label with a different layout and typographic voice from the spirits samples. The alcohol statement is printed in the trade format 'ALCOHOL 13.5% BY VOLUME' while the application records '13.5% Alc./Vol.'. That is a formatting difference, not a defect: a correct implementation normalises both to 13.5 and passes.",
+      "beverageType": "wine",
+      "kind": "base",
+      "width": 780,
+      "height": 900,
+      "bytes": 103045,
+      "application": {
+        "applicationId": "TTB-2026-004418",
+        "ttbId": "26041001000418",
+        "serialNumber": "26W008",
+        "plantRegistryNumber": "BW-CA-6238",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "01",
+        "wineVintage": "2021",
+        "wineAppellation": "Napa Valley",
+        "grapeVarietals": [
+          "Cabernet Sauvignon"
+        ],
+        "beverageType": "wine",
+        "brandName": "HOLLOW CREEK VINEYARDS",
+        "classType": "Napa Valley Cabernet Sauvignon",
+        "alcoholContent": "13.5% Alc./Vol.",
+        "netContents": "750 mL",
+        "bottlerName": "Hollow Creek Vineyards, St. Helena, California",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "HOLLOW CREEK VINEYARDS",
+        "classType": "Napa Valley Cabernet Sauvignon",
+        "alcoholContent": "ALCOHOL 13.5% BY VOLUME",
+        "netContents": "750 mL",
+        "bottlerName": "PRODUCED AND BOTTLED BY HOLLOW CREEK VINEYARDS, ST. HELENA, CALIFORNIA",
+        "otherText": [
+          "2021"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "approve",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Compliant. Exercises alcohol-statement format normalisation without introducing a defect.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "malt-compliant",
+      "file": "malt-compliant.png",
+      "title": "Iron Kettle Brewing — compliant IPA",
+      "description": "Compliant malt beverage label. Dark ground with reversed-out type, so it also exercises extraction from a low-key/inverted image rather than dark ink on light stock.",
+      "beverageType": "malt_beverage",
+      "kind": "base",
+      "width": 1000,
+      "height": 700,
+      "bytes": 103129,
+      "application": {
+        "applicationId": "TTB-2026-004419",
+        "ttbId": "26042001000419",
+        "serialNumber": "26B221",
+        "plantRegistryNumber": "BR-NC-ASH-3",
+        "applicationType": "cola",
+        "status": "approved",
+        "beverageType": "malt_beverage",
+        "brandName": "IRON KETTLE BREWING",
+        "classType": "India Pale Ale",
+        "alcoholContent": "6.8% Alc./Vol.",
+        "netContents": "12 FL OZ (355 mL)",
+        "bottlerName": "Iron Kettle Brewing Co., Asheville, North Carolina",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "IRON KETTLE BREWING",
+        "classType": "INDIA PALE ALE",
+        "alcoholContent": "6.8% ALC/VOL",
+        "netContents": "12 FL OZ (355 mL)",
+        "bottlerName": "BREWED AND BOTTLED BY IRON KETTLE BREWING CO., ASHEVILLE, NORTH CAROLINA",
+        "otherText": [
+          "DRY HOPPED · UNFILTERED"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "approve",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Compliant. Class/type is printed in capitals against a title-case application value, which must still pass.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "malt-case-and-apostrophe-variant",
+      "file": "malt-case-and-apostrophe-variant.png",
+      "title": "Stone’s Throw — case and apostrophe variance (must PASS)",
+      "description": "Trap sample. The artwork sets the brand as 'STONE’S THROW' in display capitals with a typographic apostrophe (U+2019); the application types 'Stone's Throw' in title case with an ASCII apostrophe (U+0027). A correct implementation case-folds and unicode-normalises before comparing and returns PASS. Flagging this as a mismatch is a false positive and the single most likely defect in a naive implementation.",
+      "beverageType": "malt_beverage",
+      "kind": "base",
+      "width": 1000,
+      "height": 700,
+      "bytes": 105052,
+      "application": {
+        "applicationId": "TTB-2026-004420",
+        "ttbId": "26042001000420",
+        "serialNumber": "26B107",
+        "plantRegistryNumber": "BR-VT-BUR-2",
+        "applicationType": "cola",
+        "status": "approved",
+        "beverageType": "malt_beverage",
+        "brandName": "Stone's Throw",
+        "classType": "Bohemian Pilsner",
+        "alcoholContent": "5.2% Alc./Vol.",
+        "netContents": "12 FL OZ (355 mL)",
+        "bottlerName": "Stone's Throw Brewing Co., Burlington, Vermont",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "STONE’S THROW",
+        "classType": "BOHEMIAN PILSNER",
+        "alcoholContent": "5.2% ALC/VOL",
+        "netContents": "12 FL OZ (355 mL)",
+        "bottlerName": "BREWED AND BOTTLED BY STONE’S THROW BREWING CO., BURLINGTON, VERMONT",
+        "otherText": [
+          "SAAZ HOPS · SOFT WATER"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [
+        {
+          "code": "case-and-apostrophe-variance",
+          "field": "brandName",
+          "applicationValue": "Stone's Throw",
+          "labelValue": "STONE’S THROW",
+          "note": "ACCEPTABLE VARIANCE, NOT A VIOLATION. Differs only by letter case and apostrophe codepoint (U+0027 vs U+2019). Expected verdict is pass."
+        }
+      ],
+      "expected": {
+        "recommendation": "approve",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Must be approved. Case folding plus unicode punctuation normalisation makes brand and bottler match exactly.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "spirits-abv-mismatch",
+      "file": "spirits-abv-mismatch.png",
+      "title": "Silver Fox Rye — alcohol content mismatch",
+      "description": "The application declares 45% Alc./Vol. (90 Proof); the artwork prints 40% Alc./Vol. (80 Proof). The label is internally consistent — the proof figure agrees with its own percentage — so only a comparison against the application catches it. Five percentage points is far outside any tolerance.",
+      "beverageType": "distilled_spirits",
+      "kind": "base",
+      "width": 800,
+      "height": 1000,
+      "bytes": 135444,
+      "application": {
+        "applicationId": "TTB-2026-004421",
+        "ttbId": "26043001000421",
+        "serialNumber": "26A052",
+        "plantRegistryNumber": "DSP-IN-2109",
+        "applicationType": "cola",
+        "status": "approved",
+        "beverageType": "distilled_spirits",
+        "brandName": "SILVER FOX RYE",
+        "classType": "Straight Rye Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Silver Fox Distilling Co., Lawrenceburg, Indiana",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "SILVER FOX RYE",
+        "classType": "Straight Rye Whiskey",
+        "alcoholContent": "40% Alc./Vol. (80 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "DISTILLED AND BOTTLED BY SILVER FOX DISTILLING CO., LAWRENCEBURG, INDIANA",
+        "otherText": [
+          "Aged Four Years"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [
+        {
+          "code": "abv-mismatch",
+          "field": "alcoholContent",
+          "applicationValue": "45% Alc./Vol. (90 Proof)",
+          "labelValue": "40% Alc./Vol. (80 Proof)",
+          "note": "Label understates the application by 5.0 percentage points. Tolerance for distilled spirits is 0.15 percentage points (27 CFR 5.65)."
+        }
+      ],
+      "expected": {
+        "recommendation": "reject",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "fail",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Alcohol content check must fail: 40% on the label against 45% in the application.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "wine-warning-title-case",
+      "file": "wine-warning-title-case.png",
+      "title": "Lantern Hill Cellars — warning header in title case",
+      "description": "Every field matches and the warning wording is verbatim, but the mandated header is set as 'Government Warning:' rather than 'GOVERNMENT WARNING:'. 27 CFR 16.21 requires the header in capital letters, so this fails on capitalisation alone. A word-level text diff of the warning will show NO difference — the defect is purely in letter case, which is why the header case is a separate check.",
+      "beverageType": "wine",
+      "kind": "base",
+      "width": 780,
+      "height": 900,
+      "bytes": 97901,
+      "application": {
+        "applicationId": "TTB-2026-004422",
+        "ttbId": "26043001000422",
+        "serialNumber": "26W019",
+        "plantRegistryNumber": "BW-OR-1184",
+        "applicationType": "cola",
+        "status": "approved",
+        "wineVintage": "2022",
+        "wineAppellation": "Willamette Valley",
+        "grapeVarietals": [
+          "Pinot Noir"
+        ],
+        "beverageType": "wine",
+        "brandName": "LANTERN HILL CELLARS",
+        "classType": "Willamette Valley Pinot Noir",
+        "alcoholContent": "13.1% Alc./Vol.",
+        "netContents": "750 mL",
+        "bottlerName": "Lantern Hill Cellars, Dundee, Oregon",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "LANTERN HILL CELLARS",
+        "classType": "Willamette Valley Pinot Noir",
+        "alcoholContent": "ALCOHOL 13.1% BY VOLUME",
+        "netContents": "750 mL",
+        "bottlerName": "PRODUCED AND BOTTLED BY LANTERN HILL CELLARS, DUNDEE, OREGON",
+        "otherText": [
+          "2022"
+        ],
+        "warningHeader": "Government Warning:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [
+        {
+          "code": "warning-header-not-capitalised",
+          "field": "governmentWarning.header",
+          "applicationValue": "GOVERNMENT WARNING:",
+          "labelValue": "Government Warning:",
+          "note": "Header set in title case. 27 CFR 16.21 requires 'GOVERNMENT WARNING:' in capital letters. Body wording is untouched."
+        }
+      ],
+      "expected": {
+        "recommendation": "reject",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "fail"
+        },
+        "summary": "Warning header capitalisation check must fail; the warning text check must still pass.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "malt-warning-wording",
+      "file": "malt-warning-wording.png",
+      "title": "Black Duck Brewery — reworded government warning",
+      "description": "The header is correct but the mandated wording has been altered in two places: 'women should not drink' is softened to 'women should avoid drinking', and the closing clause 'and may cause health problems' is dropped from statement (2). The warning text is prescribed verbatim, so any substitution or omission fails. This sample is the one to use when demonstrating the word-level warning diff.",
+      "beverageType": "malt_beverage",
+      "kind": "base",
+      "width": 1000,
+      "height": 700,
+      "bytes": 103089,
+      "application": {
+        "applicationId": "TTB-2026-004423",
+        "ttbId": "26044001000423",
+        "serialNumber": "26B310",
+        "plantRegistryNumber": "BR-ME-POR-1",
+        "applicationType": "cola",
+        "status": "approved",
+        "beverageType": "malt_beverage",
+        "brandName": "BLACK DUCK BREWERY",
+        "classType": "Oatmeal Stout",
+        "alcoholContent": "5.9% Alc./Vol.",
+        "netContents": "12 FL OZ (355 mL)",
+        "bottlerName": "Black Duck Brewery, Portland, Maine",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "BLACK DUCK BREWERY",
+        "classType": "OATMEAL STOUT",
+        "alcoholContent": "5.9% ALC/VOL",
+        "netContents": "12 FL OZ (355 mL)",
+        "bottlerName": "BREWED AND BOTTLED BY BLACK DUCK BREWERY, PORTLAND, MAINE",
+        "otherText": [
+          "ROASTED BARLEY · FLAKED OATS"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should avoid drinking alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery."
+      },
+      "defects": [
+        {
+          "code": "warning-text-altered",
+          "field": "governmentWarning.text",
+          "applicationValue": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
+          "labelValue": null,
+          "note": "Two deviations from the prescribed wording: 'should not drink' replaced by 'should avoid drinking', and ', and may cause health problems' omitted from statement (2). See labelText.warningBody for the exact printed string."
+        }
+      ],
+      "expected": {
+        "recommendation": "reject",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "fail",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Warning text check must fail on both a substitution and an omission; header capitalisation still passes.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "spirits-missing-net-contents",
+      "file": "spirits-missing-net-contents.png",
+      "title": "Juniper & Thorne — net contents absent from label",
+      "description": "The application declares 750 mL but the artwork carries no net contents statement anywhere. The alcohol statement is centred so that nothing appears conspicuously missing to the eye — the omission has to be found by reading the label, not by spotting a gap. This is the sample that separates 'field absent' from 'field unreadable': the field is legibly not there.",
+      "beverageType": "distilled_spirits",
+      "kind": "base",
+      "width": 800,
+      "height": 1000,
+      "bytes": 126301,
+      "application": {
+        "applicationId": "TTB-2026-004424",
+        "ttbId": "26044001000424",
+        "serialNumber": "26A077",
+        "plantRegistryNumber": "DSP-OR-2061",
+        "applicationType": "cola",
+        "status": "approved",
+        "beverageType": "distilled_spirits",
+        "brandName": "JUNIPER & THORNE",
+        "classType": "London Dry Gin",
+        "alcoholContent": "47% Alc./Vol. (94 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Juniper & Thorne Distilling, Portland, Oregon",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "JUNIPER & THORNE",
+        "classType": "London Dry Gin",
+        "alcoholContent": "47% Alc./Vol. (94 Proof)",
+        "netContents": null,
+        "bottlerName": "DISTILLED AND BOTTLED BY JUNIPER & THORNE DISTILLING, PORTLAND, OREGON",
+        "otherText": [
+          "Eleven Botanicals"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [
+        {
+          "code": "net-contents-missing",
+          "field": "netContents",
+          "applicationValue": "750 mL",
+          "labelValue": null,
+          "note": "No net contents statement is printed anywhere on the artwork. Expected verdict is fail (absent), NOT unreadable — the image is clean and the field is legibly not present. Note also that `containerInfoNotOnLabels` is deliberately left unset on this application: nothing is declared as blown, branded or embossed into the container, so the escape hatch for embossed net contents does not apply and the omission is a genuine failure."
+        }
+      ],
+      "expected": {
+        "recommendation": "reject",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "fail",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Net contents check must fail as absent from the label. Also exercises an ampersand in the brand name.",
+        "imageQuality": "pass"
+      }
+    },
+    {
+      "id": "spirits-bourbon-compliant--rotated-8deg",
+      "file": "spirits-bourbon-compliant--rotated-8deg.png",
+      "title": "Compliant bourbon — rotated 8 degrees on grey",
+      "description": "The reference label photographed off-square. All text remains legible, so the compliance outcome is unchanged; only the image quality notes should differ.",
+      "beverageType": "distilled_spirits",
+      "kind": "degraded",
+      "derivedFrom": "spirits-bourbon-compliant",
+      "imageTransform": "rotate 8deg, grey (#8A8A8A) fill, resized to 1000px long edge",
+      "width": 845,
+      "height": 1000,
+      "bytes": 111135,
+      "application": {
+        "applicationId": "TTB-2026-004417",
+        "ttbId": "26041001000417",
+        "serialNumber": "26A014",
+        "plantRegistryNumber": "DSP-KY-1471",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "22",
+        "beverageType": "distilled_spirits",
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Old Tom Distillery Co., Bardstown, Kentucky",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "BOTTLED BY OLD TOM DISTILLERY CO., BARDSTOWN, KENTUCKY",
+        "otherText": [
+          "Small Batch — Barrel No. 118"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "approve",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Rotation must not change any verdict. Expect the same approval as the reference sample, with a rotation noted under image quality.",
+        "imageQuality": "pass"
+      },
+      "imageQualityIssues": [
+        "rotated approximately 8 degrees clockwise",
+        "grey background visible at the corners"
+      ]
+    },
+    {
+      "id": "spirits-bourbon-compliant--glare",
+      "file": "spirits-bourbon-compliant--glare.png",
+      "title": "Compliant bourbon — specular glare",
+      "description": "A bright reflection across the upper right of the label, as from a phone flash on a glossy bottle. The brand and class/type sit partly under the glare but remain readable; the small print at the bottom is untouched.",
+      "beverageType": "distilled_spirits",
+      "kind": "degraded",
+      "derivedFrom": "spirits-bourbon-compliant",
+      "imageTransform": "two white radial-gradient ellipses composited with an over blend",
+      "width": 800,
+      "height": 1000,
+      "bytes": 173765,
+      "application": {
+        "applicationId": "TTB-2026-004417",
+        "ttbId": "26041001000417",
+        "serialNumber": "26A014",
+        "plantRegistryNumber": "DSP-KY-1471",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "22",
+        "beverageType": "distilled_spirits",
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Old Tom Distillery Co., Bardstown, Kentucky",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "BOTTLED BY OLD TOM DISTILLERY CO., BARDSTOWN, KENTUCKY",
+        "otherText": [
+          "Small Batch — Barrel No. 118"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "approve",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "pass",
+          "government_warning": "pass",
+          "warning_capitalisation": "pass"
+        },
+        "summary": "Glare reduces contrast but does not obscure any mandatory field. Expect approval with a glare note under image quality.",
+        "imageQuality": "pass"
+      },
+      "imageQualityIssues": [
+        "specular glare across the upper right",
+        "reduced contrast in the brand area"
+      ]
+    },
+    {
+      "id": "spirits-bourbon-compliant--blurred-underexposed",
+      "file": "spirits-bourbon-compliant--blurred-underexposed.png",
+      "title": "Compliant bourbon — blurred and underexposed",
+      "description": "Out of focus and shot in poor light. The brand and class/type survive; the government warning small print does not. This is the sample that should exercise the UNREADABLE path rather than a pass or a fail — the correct behaviour is to decline to judge the warning, not to guess at it.",
+      "beverageType": "distilled_spirits",
+      "kind": "degraded",
+      "derivedFrom": "spirits-bourbon-compliant",
+      "imageTransform": "gaussian blur sigma 2.6, brightness 0.5, contrast reduced",
+      "width": 800,
+      "height": 1000,
+      "bytes": 166610,
+      "application": {
+        "applicationId": "TTB-2026-004417",
+        "ttbId": "26041001000417",
+        "serialNumber": "26A014",
+        "plantRegistryNumber": "DSP-KY-1471",
+        "applicationType": "cola",
+        "status": "approved",
+        "originCode": "22",
+        "beverageType": "distilled_spirits",
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "Old Tom Distillery Co., Bardstown, Kentucky",
+        "isImport": false
+      },
+      "labelText": {
+        "brandName": "OLD TOM DISTILLERY",
+        "classType": "Kentucky Straight Bourbon Whiskey",
+        "alcoholContent": "45% Alc./Vol. (90 Proof)",
+        "netContents": "750 mL",
+        "bottlerName": "BOTTLED BY OLD TOM DISTILLERY CO., BARDSTOWN, KENTUCKY",
+        "otherText": [
+          "Small Batch — Barrel No. 118"
+        ],
+        "warningHeader": "GOVERNMENT WARNING:",
+        "warningBody": "(1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "needs_review",
+        "checks": {
+          "brand_name": "pass",
+          "class_type": "pass",
+          "alcohol_content": "pass",
+          "net_contents": "pass",
+          "bottler": "unreadable",
+          "government_warning": "unreadable",
+          "warning_capitalisation": "unreadable"
+        },
+        "summary": "Large type is still legible but the warning small print is not. A correct implementation returns unreadable for the warning checks and routes to human review — never a pass, and never a fail.",
+        "imageQuality": "fail"
+      },
+      "imageQualityIssues": [
+        "out of focus",
+        "underexposed",
+        "small print at the foot of the label is not resolvable"
+      ]
+    }
+  ]
+}

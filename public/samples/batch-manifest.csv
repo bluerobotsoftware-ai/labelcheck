@@ -1,0 +1,12 @@
+filename,applicationid,beveragetype,brandname,classtype,alcoholcontent,netcontents,bottlername,countryoforigin,isimport
+spirits-bourbon-compliant.png,TTB-2026-004417,distilled_spirits,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45% Alc./Vol. (90 Proof),750 mL,"Old Tom Distillery Co., Bardstown, Kentucky",,false
+wine-compliant.png,TTB-2026-004418,wine,HOLLOW CREEK VINEYARDS,Napa Valley Cabernet Sauvignon,13.5% Alc./Vol.,750 mL,"Hollow Creek Vineyards, St. Helena, California",,false
+malt-compliant.png,TTB-2026-004419,malt_beverage,IRON KETTLE BREWING,India Pale Ale,6.8% Alc./Vol.,12 FL OZ (355 mL),"Iron Kettle Brewing Co., Asheville, North Carolina",,false
+malt-case-and-apostrophe-variant.png,TTB-2026-004420,malt_beverage,Stone's Throw,Bohemian Pilsner,5.2% Alc./Vol.,12 FL OZ (355 mL),"Stone's Throw Brewing Co., Burlington, Vermont",,false
+spirits-abv-mismatch.png,TTB-2026-004421,distilled_spirits,SILVER FOX RYE,Straight Rye Whiskey,45% Alc./Vol. (90 Proof),750 mL,"Silver Fox Distilling Co., Lawrenceburg, Indiana",,false
+wine-warning-title-case.png,TTB-2026-004422,wine,LANTERN HILL CELLARS,Willamette Valley Pinot Noir,13.1% Alc./Vol.,750 mL,"Lantern Hill Cellars, Dundee, Oregon",,false
+malt-warning-wording.png,TTB-2026-004423,malt_beverage,BLACK DUCK BREWERY,Oatmeal Stout,5.9% Alc./Vol.,12 FL OZ (355 mL),"Black Duck Brewery, Portland, Maine",,false
+spirits-missing-net-contents.png,TTB-2026-004424,distilled_spirits,JUNIPER & THORNE,London Dry Gin,47% Alc./Vol. (94 Proof),750 mL,"Juniper & Thorne Distilling, Portland, Oregon",,false
+spirits-bourbon-compliant--rotated-8deg.png,TTB-2026-004417,distilled_spirits,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45% Alc./Vol. (90 Proof),750 mL,"Old Tom Distillery Co., Bardstown, Kentucky",,false
+spirits-bourbon-compliant--glare.png,TTB-2026-004417,distilled_spirits,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45% Alc./Vol. (90 Proof),750 mL,"Old Tom Distillery Co., Bardstown, Kentucky",,false
+spirits-bourbon-compliant--blurred-underexposed.png,TTB-2026-004417,distilled_spirits,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45% Alc./Vol. (90 Proof),750 mL,"Old Tom Distillery Co., Bardstown, Kentucky",,false

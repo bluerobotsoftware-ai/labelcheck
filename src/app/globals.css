@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/**
+ * Design tokens.
+ *
+ * The audience is not a design-savvy consumer. Half of TTB's label compliance
+ * team is over fifty; the benchmark we were given was "something my mother
+ * could figure out — she's 73". Three consequences run through everything here:
+ *
+ *   1. Base type is 17px, not the 14px a dense admin tool would use, and line
+ *      height is generous. Nothing important is set below 15px.
+ *   2. Verdict colours clear WCAG AA against their own backgrounds, and every
+ *      verdict is carried by a word and a shape as well as a colour — roughly
+ *      one man in twelve cannot rely on red versus green.
+ *   3. Interactive targets are at least 44px tall.
+ */
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* Federal-adjacent, deliberately sober. */
+  --color-ink: #12161c;
+  --color-ink-soft: #4a5462;
+  --color-line: #d7dce3;
+  --color-surface: #ffffff;
+  --color-canvas: #f4f6f9;
+
+  --color-brand: #1c4e80;
+  --color-brand-dark: #163e66;
+
+  /* Verdict palette. */
+  --color-pass: #1a7f43;
+  --color-pass-bg: #e8f6ed;
+  --color-review: #8a5a00;
+  --color-review-bg: #fdf3e0;
+  --color-fail: #b3261e;
+  --color-fail-bg: #fdeceb;
+  --color-muted: #5b6472;
+  --color-muted-bg: #f0f2f5;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A visible focus ring everywhere — this has to be keyboard-navigable. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect a stated preference for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Printing a report is a real workflow for a case file. */
+@media print {
+  body {
+    background: #fff;
+    font-size: 12pt;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-break-avoid {
+    break-inside: avoid;
+  }
+}
