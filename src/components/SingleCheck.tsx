@@ -23,6 +23,8 @@ interface Sample {
   title: string;
   description: string;
   kind: string;
+  /** When true, this sample is pre-loaded so the page arrives ready to run. */
+  isDefault?: boolean;
   application: Application;
   defects: unknown[];
 }
@@ -49,14 +51,6 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [status, setStatus] = useState<Status>({ phase: "idle" });
   const resultRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetch("/samples/manifest.json")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => setSamples(data?.samples ?? []))
-      // Samples are a convenience; the app is fully usable without them.
-      .catch(() => setSamples([]));
-  }, []);
 
   /*
    * The preview URL is DERIVED from the file, not stored alongside it. Holding
@@ -90,6 +84,35 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
       });
     }
   }, []);
+
+  // Declared after loadSample so the effect can call it.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/samples/manifest.json")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const loaded: Sample[] = data?.samples ?? [];
+        setSamples(loaded);
+
+        /*
+         * Pre-load the sample marked as default, so the page arrives ready to
+         * run rather than as an empty form. A reviewer opening the link can
+         * press one button and see a real result immediately.
+         */
+        const preset = loaded.find((sample) => sample.isDefault);
+        if (preset) void loadSample(preset);
+      })
+      // Samples are a convenience; the app is fully usable without them.
+      .catch(() => {
+        if (!cancelled) setSamples([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSample]);
 
   const submit = useCallback(async () => {
     if (!image) return;

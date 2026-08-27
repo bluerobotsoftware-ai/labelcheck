@@ -9,6 +9,32 @@
   },
   "samples": [
     {
+      "id": "real-proper-twelve",
+      "file": "real-proper-twelve-irish-whiskey.png",
+      "title": "Proper No. Twelve — real commercial label",
+      "description": "An actual back label from a product on sale, not generated artwork. Every other sample was produced by the same process that built this checker, so a real label is the only independent test in the set. It is also an import, so country of origin applies, and its entire warning is set in capitals — lawful, since 27 CFR 16.22 constrains only the heading.",
+      "beverageType": "distilled_spirits",
+      "kind": "real",
+      "isDefault": true,
+      "provenance": "Photographed from a retail bottle. Used here as a test fixture for a compliance checker; TTB publishes label images of approved COLAs in its own public registry.",
+      "application": {
+        "applicationId": "TTB-2026-000912",
+        "beverageType": "distilled_spirits",
+        "brandName": "PROPER No. TWELVE",
+        "classType": "Irish Whiskey",
+        "alcoholContent": "40% ALC/VOL",
+        "netContents": "750 ML",
+        "bottlerName": "Proximo Spirits, Jersey City, NJ",
+        "countryOfOrigin": "Ireland",
+        "isImport": true
+      },
+      "defects": [],
+      "expected": {
+        "recommendation": "approve",
+        "note": "A real, marketed label should pass. Anything it fails is far more likely to be a defect in this tool than in a product that cleared TTB review — which is exactly why it is in the set."
+      }
+    },
+    {
       "id": "spirits-bourbon-compliant",
       "file": "spirits-bourbon-compliant.png",
       "title": "Old Tom Distillery — compliant bourbon",
