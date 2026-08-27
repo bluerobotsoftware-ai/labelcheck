@@ -73,16 +73,30 @@ ANTHROPIC_MODEL=claude-opus-5
 |---|---|
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
-| `npm test` | Run the test suite (183 tests, no network or API key needed) |
+| `npm run verify` | **The gate. Run before every push.** typecheck, lint, tests and the sweep, in one command. |
+| `npm test` | The test suite (211 tests, no network or API key needed) |
+| `npm run sweep` | Every sample label measured through several deliberately sloppy bounding boxes, checked against ground truth. No network, about a second. |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run lint` | ESLint |
 | `npm run samples` | Regenerate the sample label images |
-| `npm run verify:samples` | Push every sample label through a running instance and check each verdict against the manifest's ground truth. Needs the server running and a reader key configured. Set `BASE_URL` to smoke-test a deployed URL instead of localhost. |
-| `npm run compare:readers` | Measure candidate vision models against the samples for accuracy and latency. Needs `GEMINI_API_KEY`. |
+| `npm run verify:samples` | Push every sample through a running instance and check each verdict against the manifest. Needs the server running and a reader key. Set `BASE_URL` to smoke-test a deployed URL. |
+| `npm run compare:readers` | Measure candidate vision models for accuracy and latency. Needs `GEMINI_API_KEY`. |
 
-`npm test` is the one that matters for review: it covers every compliance rule
-and needs no network, no API key and no spend. The bottom two scripts are the
-only things in the repo that call a vision model.
+`npm test` covers every compliance rule and needs no network, no API key and no
+spend. Only the last two scripts call a vision model.
+
+### Why there is a sweep as well as a test suite
+
+The unit tests are green against fixtures written by the same hand as the code,
+so they confirm assumptions rather than challenge them. `npm run sweep` runs the
+real measurement over the real sample images with inputs shaped like the ones
+the vision model actually returns — loose boxes, boxes overrunning the image
+edge, boxes stated in pixels where fractions were specified.
+
+It exists because abandoning it cost real defects. Four bugs reached production
+that a single sweep run would have caught together, and were instead found one
+at a time over several pushes. On its first run after being made permanent it
+also caught a flaw in its own harness.
 
 ---
 
