@@ -70,19 +70,85 @@ export function toleranceFor(type: BeverageType, abv: number): number {
  * catastrophic misreading that looks like a legitimate number.
  */
 const ABV_PATTERNS: RegExp[] = [
-  // "45% Alc./Vol.", "12.5% ALC BY VOL", "5% ABV", "45 % alc/vol", "13,5% vol"
-  /(\d*[.,]?\d+)\s*%\s*(?:alc|alcohol|abv)?/i,
-  // "ALC. 45% BY VOL" handled by the above; this catches "ALCOHOL 45 BY VOLUME"
-  /(?:alc|alcohol)\.?\s*(\d*[.,]?\d+)\s*(?:%|percent)?\s*(?:by)?\s*vol/i,
+  /*
+   * Ordered from most to least specific, and the first two REQUIRE alcohol
+   * vocabulary next to the number.
+   *
+   * A bare "(\d+)%" pattern matched any percentage anywhere on the label, and
+   * spirits labels are full of them — "DISTILLED FROM 100% CORN" was read as
+   * 100% alcohol by volume, a confident and completely fictional figure.
+   */
+  // "45% Alc./Vol.", "12.5% ALC BY VOL", "5% ABV", "13,5% vol"
+  /(\d*[.,]?\d+)\s*%\s*(?:alc|alcohol|abv|vol)/i,
+  // "ALC. 45% BY VOL", "ALCOHOL 45 BY VOLUME"
+  /(?:alc|alcohol|abv)\.?\s*(\d*[.,]?\d+)\s*(?:%|percent)?\s*(?:by\s*)?vol/i,
   // Bare trailing percentage, e.g. an application field containing just "45"
   /^\s*(\d*[.,]?\d+)\s*%?\s*$/,
+  /*
+   * Last resort: a lone percentage in a field with nothing else in it. Kept
+   * because an application's alcohol field is sometimes just "45%", but placed
+   * after the vocabulary-anchored patterns so it never wins on a busy label.
+   */
+  /^\s*(\d*[.,]?\d+)\s*%\s*$/,
 ];
 
 const PROOF_PATTERN = /(\d*[.,]?\d+)\s*(?:degrees?\s*)?proof/i;
 
+/**
+ * Plausible bounds for a beverage.
+ *
+ * Anything outside this is a misparse, not a product — the strongest spirits
+ * sold are around 95%. Returning null lets the engine report "could not
+ * interpret" and route to review, which is honest; returning 100 because the
+ * label mentioned 100% rye is a fabricated finding wearing a number's clothes.
+ */
+const MIN_PLAUSIBLE_ABV = 0;
+const MAX_PLAUSIBLE_ABV = 95;
+
+/** Vulgar fractions, which NFKC does not decompose into usable decimals. */
+const VULGAR_FRACTIONS: Record<string, string> = {
+  "½": ".5",
+  "¼": ".25",
+  "¾": ".75",
+  "⅓": ".333",
+  "⅔": ".667",
+  "⅕": ".2",
+  "⅖": ".4",
+  "⅗": ".6",
+  "⅘": ".8",
+  "⅙": ".167",
+  "⅛": ".125",
+  "⅜": ".375",
+  "⅝": ".625",
+  "⅞": ".875",
+};
+
+/**
+ * Fold vulgar fractions into decimals BEFORE normalising.
+ *
+ * NFKC turns "12½%" into "121⁄2%", which then parses as 2% — a plausible-looking
+ * number that is wrong by a factor of six. Wine and cider labels use these.
+ */
+function expandFractions(input: string): string {
+  let output = input;
+  for (const [glyph, decimal] of Object.entries(VULGAR_FRACTIONS)) {
+    output = output.split(glyph).join(decimal);
+  }
+  return output;
+}
+
 /** Parse a number that may use either a dot or a comma as its decimal mark. */
 function parseDecimal(raw: string): number {
   return Number.parseFloat(raw.replace(",", "."));
+}
+
+/** Reject impossible figures rather than reporting them confidently. */
+function plausibleAbv(value: number): boolean {
+  return (
+    Number.isFinite(value) &&
+    value >= MIN_PLAUSIBLE_ABV &&
+    value <= MAX_PLAUSIBLE_ABV
+  );
 }
 
 /**
@@ -100,13 +166,16 @@ export function parseAlcohol(input: string | null | undefined): AlcoholReading {
   };
   if (!input) return empty;
 
-  const text = input.normalize("NFKC").trim();
+  const text = expandFractions(input).normalize("NFKC").trim();
 
   let proof: number | null = null;
   const proofMatch = PROOF_PATTERN.exec(text);
   if (proofMatch) {
     const value = parseDecimal(proofMatch[1]);
-    if (Number.isFinite(value)) proof = value;
+    // Proof is twice ABV, so the same plausibility bound applies doubled.
+    if (Number.isFinite(value) && value >= 0 && value <= MAX_PLAUSIBLE_ABV * 2) {
+      proof = value;
+    }
   }
 
   // Look for an explicit percentage. Exclude the proof substring first so
@@ -121,7 +190,7 @@ export function parseAlcohol(input: string | null | undefined): AlcoholReading {
     const match = pattern.exec(withoutProof);
     if (match) {
       const value = parseDecimal(match[1]);
-      if (Number.isFinite(value)) {
+      if (plausibleAbv(value)) {
         abv = value;
         matchedText = match[0].trim();
         break;

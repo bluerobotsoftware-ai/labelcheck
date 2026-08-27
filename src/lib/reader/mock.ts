@@ -15,7 +15,7 @@
  */
 
 import type { LabelExtraction } from "../ttb/types";
-import type { LabelReader, ReadRequest, ReadResult } from "./types";
+import type { LabelReader, ReadResult } from "./types";
 
 /** A clean, fully compliant distilled spirits label. */
 export const COMPLIANT_SPIRITS: LabelExtraction = {
@@ -58,7 +58,7 @@ export class MockReader implements LabelReader {
     return true;
   }
 
-  async read(_request: ReadRequest): Promise<ReadResult> {
+  async read(): Promise<ReadResult> {
     const started = Date.now();
     if (this.latencyMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.latencyMs));

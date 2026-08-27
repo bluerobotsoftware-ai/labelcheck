@@ -19,6 +19,7 @@ import { canonicalTokens, ladderMatch } from "./normalize";
 import { combinedSimilarity, containsAllTokens } from "./similarity";
 import type {
   Application,
+  CheckCategory,
   CheckResult,
   FieldReading,
   LabelExtraction,
@@ -48,6 +49,42 @@ const REVIEW_SIMILARITY_THRESHOLD = 0.82;
 const MIN_USABLE_CONFIDENCE = 0.4;
 
 /**
+ * The confidence gate, as a standalone check.
+ *
+ * This lived inside `preflight()` originally, which meant only the four fields
+ * routed through `compareTextField()` were gated — alcohol content, net
+ * contents and the health warning each have their own control flow and silently
+ * skipped it. Those are the three fields carrying the most absolute obligations
+ * in the system, so a label whose ABV and warning were transcribed at 1%
+ * confidence returned "approve". The gate now lives here and every caller
+ * applies it.
+ */
+function unreadable(
+  id: string,
+  name: string,
+  category: CheckCategory,
+  reading: FieldReading,
+  citation?: string,
+): CheckResult {
+  return {
+    id,
+    name,
+    category,
+    verdict: "unreadable",
+    found: reading.text,
+    rule: "low-transcription-confidence",
+    explanation: `The ${name.toLowerCase()} could not be read reliably from this image. A clearer photograph is needed before this item can be verified.`,
+    confidence: reading.confidence,
+    citation,
+  };
+}
+
+/** True when the reader admitted it was guessing at this field. */
+function tooUncertain(reading: FieldReading): boolean {
+  return reading.confidence < MIN_USABLE_CONFIDENCE;
+}
+
+/**
  * Shared handling for the three degenerate cases every field-match check has:
  * the application omitted the value, the label omitted it, or the reader could
  * not make it out. Returns null when the pair is comparable and the caller
@@ -62,12 +99,33 @@ function preflight(
 ): CheckResult | null {
   const { requiredOnLabel, citation } = options;
 
+  /*
+   * Absence from the LABEL is tested before absence from the application, and
+   * the order matters. A mandatory item missing from the artwork is a defect
+   * whatever the application happens to say — testing `expected` first let an
+   * empty application field cancel the label's own obligation and return
+   * "not applicable" for something the regulation requires unconditionally.
+   */
+  if (!reading && requiredOnLabel) {
+    return {
+      id,
+      name,
+      category: "compliance",
+      verdict: "fail",
+      expected,
+      rule: "mandatory-field-absent",
+      explanation: `No ${name.toLowerCase()} could be found anywhere on the label. This is a mandatory item on every container.`,
+      citation,
+    };
+  }
+
   if (!expected || !expected.trim()) {
     return {
       id,
       name,
       category: "match",
       verdict: "not_applicable",
+      found: reading?.text,
       rule: "application-field-empty",
       explanation: `The application did not state a ${name.toLowerCase()}, so there is nothing to compare against.`,
       citation,
@@ -79,29 +137,16 @@ function preflight(
       id,
       name,
       category: "match",
-      verdict: requiredOnLabel ? "fail" : "review",
+      verdict: "review",
       expected,
       rule: "label-field-absent",
-      explanation: requiredOnLabel
-        ? `No ${name.toLowerCase()} could be found anywhere on the label, but the application states "${expected}". This is a required item.`
-        : `No ${name.toLowerCase()} was found on the label. The application states "${expected}".`,
+      explanation: `No ${name.toLowerCase()} was found on the label. The application states "${expected}".`,
       citation,
     };
   }
 
-  if (reading.confidence < MIN_USABLE_CONFIDENCE) {
-    return {
-      id,
-      name,
-      category: "match",
-      verdict: "unreadable",
-      expected,
-      found: reading.text,
-      rule: "low-transcription-confidence",
-      explanation: `The ${name.toLowerCase()} could not be read reliably from this image. A clearer photograph is needed before this item can be verified.`,
-      confidence: reading.confidence,
-      citation,
-    };
+  if (tooUncertain(reading)) {
+    return { ...unreadable(id, name, "match", reading, citation), expected };
   }
 
   return null;
@@ -126,6 +171,15 @@ function compareTextField(
     requiredOnLabel: boolean;
     citation?: string;
     subsetIsAcceptable?: boolean;
+    /**
+     * What containment should yield. A bottler line legitimately carries an
+     * address the application omits, so extra words there are a `pass`. On a
+     * class/type designation extra words can change the product outright —
+     * "GIN" against a label reading "SLOE GIN", or "BRANDY" against "FLAVORED
+     * BRANDY" — and a class/type change always requires a new COLA. Those must
+     * reach a human, so containment there yields `review`.
+     */
+    containmentVerdict?: "pass" | "review";
   },
 ): CheckResult {
   const early = preflight(id, name, expected, reading, options);
@@ -134,7 +188,11 @@ function compareTextField(
   // preflight() guarantees both are present past this point.
   const expectedValue = expected as string;
   const found = reading as FieldReading;
-  const { citation, subsetIsAcceptable = false } = options;
+  const {
+    citation,
+    subsetIsAcceptable = false,
+    containmentVerdict = "pass",
+  } = options;
 
   const ladder = ladderMatch(expectedValue, found.text);
   if (ladder.matched) {
@@ -159,16 +217,22 @@ function compareTextField(
   const foundTokens = canonicalTokens(found.text);
 
   if (subsetIsAcceptable && containsAllTokens(foundTokens, expectedTokens)) {
+    const extra = foundTokens.filter((token) => !expectedTokens.includes(token));
     return {
       id,
       name,
       category: "match",
-      verdict: "pass",
+      verdict: containmentVerdict,
       expected: expectedValue,
       found: found.text,
-      rule: "label-contains-application-value",
+      rule:
+        containmentVerdict === "pass"
+          ? "label-contains-application-value"
+          : "label-adds-words-needs-review",
       explanation:
-        "The label carries additional text, but everything the application stated appears within it.",
+        containmentVerdict === "pass"
+          ? "The label carries additional text, but everything the application stated appears within it."
+          : `The label states everything the application did, but adds ${extra.map((word) => `"${word}"`).join(", ")}. On a class or type designation an extra word can change what the product legally is, so please confirm this is the same designation.`,
       confidence: found.confidence,
       citation,
     };
@@ -265,6 +329,11 @@ function checkAlcoholContent(
           : "No alcohol content statement was found on the label. This is a mandatory item.",
       citation,
     });
+    return results;
+  }
+
+  if (tooUncertain(reading)) {
+    results.push(unreadable(id, name, "match", reading, citation));
     return results;
   }
 
@@ -437,6 +506,13 @@ function checkNetContents(
     return results;
   }
 
+  // A volume the reader could barely see must not drive a standards-of-fill
+  // conclusion — that check produces a hard failure citing a specific CFR part.
+  if (tooUncertain(reading)) {
+    results.push(unreadable(id, name, "match", reading, citation));
+    return results;
+  }
+
   const declared = parseVolume(application.netContents);
   const printed = parseVolume(reading.text);
 
@@ -550,6 +626,17 @@ function checkGovernmentWarning(extraction: LabelExtraction): CheckResult[] {
           "No government health warning was found on the label. It is mandatory on every alcoholic beverage container.",
         citation,
       },
+    ];
+  }
+
+  /*
+   * The warning is compared word-for-word against the statute, so a shaky
+   * transcription produces a diff full of phantom edits and a confident,
+   * entirely fictional rejection. Refusing to judge is the honest answer.
+   */
+  if (tooUncertain(reading)) {
+    return [
+      unreadable("government_warning", "Government Warning", "compliance", reading, citation),
     ];
   }
 
@@ -769,7 +856,12 @@ export function verify(
       "Class / Type",
       application.classType,
       extraction.classType,
-      { requiredOnLabel: true, citation: "27 CFR 5.63", subsetIsAcceptable: true },
+      {
+        requiredOnLabel: true,
+        citation: "27 CFR 5.63",
+        subsetIsAcceptable: true,
+        containmentVerdict: "review",
+      },
     ),
     ...checkAlcoholContent(application, extraction),
     ...checkNetContents(application, extraction),

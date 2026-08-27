@@ -221,6 +221,46 @@ label to exercise image robustness. See `docs/SAMPLE-LABELS.md`.
 
 ---
 
+## It was audited, adversarially, and it did not pass first time
+
+Two independent audits were run against the finished prototype, each told to
+assume the code was broken and to prove it, and each required to separate a
+defect it *reproduced* from a concern it merely *suspected*. They found 40
+findings between them. The full reports are committed:
+
+- `docs/AUDIT-CORRECTNESS.md` — rules engine, parsers, regulatory accuracy
+- `docs/AUDIT-ROBUSTNESS.md` — API surface, readers, React, accessibility
+
+Every CRITICAL and HIGH finding is fixed, and each one has a regression test
+naming it (`tests/auditRegressions.test.ts`, `tests/security.test.ts`). The
+three worst:
+
+**The confidence gate reached four fields out of seven.** It lived inside the
+text-comparison path, so alcohol content, net contents and the health warning —
+the three items carrying the most absolute obligations in the system — never
+checked it. A label transcribed at 5% confidence throughout returned
+**"approve"**. That is the worst bug this product could have: a confident
+finding drawn from an image the reader admitted it could not see.
+
+**The rate limiter was defeated by a header the client sets.** It read the
+leftmost `x-forwarded-for` entry — whatever the caller typed. 300 requests with
+rotating values produced zero rejections, against the one control standing
+between a stranger and the operator's API budget.
+
+**Extra words on a class/type designation passed silently.** An application
+reading "GIN" against a label reading "SLOE GIN" returned `pass`, as did
+"BRANDY" vs "FLAVORED BRANDY". A class/type change always requires a new COLA;
+these now go to review.
+
+Also fixed: CSV export wrote unescaped formulas into a file agents open in
+Excel; the Gemini reader cast its response instead of validating it, and six
+malformed shapes crashed the server or the browser; MIME type was trusted on
+declaration alone; a wrapped "GOVERNMENT WARNING:" heading rejected a compliant
+label; `&` never folded to `and` despite a table entry saying it did; a
+grain-bill percentage ("DISTILLED FROM 100% CORN") was read as 100% ABV; `12½%`
+parsed as 2%; and `--color-line` measured 1.38:1, well under the 3:1 WCAG
+requires of a border that delimits the drop zone.
+
 ## Two bugs worth reporting
 
 Both were caught by the process rather than by luck, and both are now regression

@@ -23,7 +23,18 @@
   /* Federal-adjacent, deliberately sober. */
   --color-ink: #12161c;
   --color-ink-soft: #4a5462;
-  --color-line: #d7dce3;
+  /*
+   * Borders carry meaning here — they delimit the drop zone and outline the
+   * secondary buttons — so they are subject to WCAG 1.4.11 non-text contrast,
+   * which requires 3:1. The original #d7dce3 measured 1.38:1 against white:
+   * pleasant, and invisible to anyone with reduced contrast sensitivity, which
+   * is a substantial share of a workforce that is half over fifty.
+   *
+   * #868f9c measures 3.27:1 on white and 3.02:1 on the canvas — clearing the
+   * bar against both surfaces it is actually drawn on. Verified by computing
+   * the ratios, not by eye.
+   */
+  --color-line: #868f9c;
   --color-surface: #ffffff;
   --color-canvas: #f4f6f9;
 

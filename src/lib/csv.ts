@@ -90,9 +90,26 @@ export function toCsv(rows: (string | number | null | undefined)[][]): string {
     .join("\r\n");
 }
 
+/**
+ * Characters that make Excel, Sheets and LibreOffice treat a cell as a formula.
+ *
+ * A brand name of `=HYPERLINK("http://evil","Click")` is a perfectly legal
+ * string to type into a COLA application, and our export writes it into a file
+ * a compliance agent opens in Excel. Neutralising it is the exporter's job:
+ * the value must survive intact and display as typed, but must not execute.
+ */
+const FORMULA_TRIGGERS = ["=", "+", "-", "@", "\t", "\r"];
+
 function escapeCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const text = String(value);
+  let text = String(value);
+
+  // Prefix with an apostrophe, the conventional "treat as text" marker. The
+  // spreadsheet strips it on display, so the agent sees the original value.
+  if (FORMULA_TRIGGERS.some((trigger) => text.startsWith(trigger))) {
+    text = `'${text}`;
+  }
+
   if (/[",\n\r]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }

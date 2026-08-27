@@ -13,7 +13,7 @@
  */
 
 import type { LabelExtraction } from "../ttb/types";
-import { EXTRACTION_PROMPT } from "./schema";
+import { EXTRACTION_PROMPT, labelExtractionSchema } from "./schema";
 import { ReaderError, type LabelReader, type ReadRequest, type ReadResult } from "./types";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
@@ -156,9 +156,9 @@ export class GeminiReader implements LabelReader {
         });
       }
 
-      let parsed: LabelExtraction;
+      let raw: unknown;
       try {
-        parsed = JSON.parse(text) as LabelExtraction;
+        raw = JSON.parse(text);
       } catch (cause) {
         throw new ReaderError("Gemini returned malformed JSON", {
           userMessage: "The label reader returned an unreadable response. Please try again.",
@@ -167,8 +167,33 @@ export class GeminiReader implements LabelReader {
         });
       }
 
+      /*
+       * Validate, do not cast.
+       *
+       * `as LabelExtraction` asserts a shape rather than checking one, and
+       * Gemini's `required` is a strong hint rather than a guarantee. A response
+       * with `governmentWarning.text: null` crashed the rules engine; other
+       * shapes crashed the browser into a blank screen. The schema was already
+       * written and already used by the sibling reader — the bug was not
+       * applying it here.
+       */
+      const validated = labelExtractionSchema.safeParse(normalise(raw as Partial<LabelExtraction>));
+      if (!validated.success) {
+        throw new ReaderError(
+          `Gemini response failed validation: ${validated.error.issues
+            .slice(0, 3)
+            .map((issue) => `${issue.path.join(".")} ${issue.message}`)
+            .join("; ")}`,
+          {
+            userMessage:
+              "The label reader returned an unexpected response. Please try again, or upload a clearer image.",
+            retryable: true,
+          },
+        );
+      }
+
       return {
-        extraction: normalise(parsed),
+        extraction: validated.data as LabelExtraction,
         elapsedMs: Date.now() - started,
         reader: `gemini:${MODEL}`,
         usage: {

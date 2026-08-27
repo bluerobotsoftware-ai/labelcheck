@@ -38,26 +38,36 @@ export function ApplicationForm({
         label="Beverage type"
         hint="Determines which rules and tolerances apply."
         required
+        wraps="group"
       >
-        <div className="grid gap-2 sm:grid-cols-3">
+        {/*
+          Each radio gets its own <label htmlFor>, not a wrapping one. Nesting
+          these inside the outer field <label> made the first radio inherit the
+          whole group's text, so a screen reader announced a 90-character name
+          for a three-word option.
+        */}
+        <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label="Beverage type">
           {(Object.keys(BEVERAGE_LABELS) as BeverageType[]).map((type) => (
-            <label
+            <div
               key={type}
-              className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border-2 px-3 py-2 ${
+              className={`flex min-h-11 items-center gap-2 rounded-lg border-2 px-3 py-2 ${
                 value.beverageType === type
                   ? "border-[var(--color-brand)] bg-[var(--color-brand)]/5 font-semibold"
                   : "border-[var(--color-line)] bg-white"
               }`}
             >
               <input
+                id={`beverage-${type}`}
                 type="radio"
                 name="beverageType"
                 className="h-4 w-4"
                 checked={value.beverageType === type}
                 onChange={() => set("beverageType", type)}
               />
-              {BEVERAGE_LABELS[type]}
-            </label>
+              <label htmlFor={`beverage-${type}`} className="cursor-pointer">
+                {BEVERAGE_LABELS[type]}
+              </label>
+            </div>
           ))}
         </div>
       </Field>
@@ -152,19 +162,31 @@ export function ApplicationForm({
   );
 }
 
+/**
+ * A labelled field.
+ *
+ * `wraps` distinguishes the two cases. A single input is wrapped by its own
+ * <label>, which is the simplest correct association. A GROUP of controls
+ * cannot be — nesting radios inside a label makes each one inherit the group's
+ * entire text as its accessible name — so those render inside a plain <div>
+ * and label their controls individually.
+ */
 function Field({
   label,
   hint,
   required,
+  wraps = "single",
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  wraps?: "single" | "group";
   children: React.ReactNode;
 }) {
+  const Wrapper = wraps === "single" ? "label" : "div";
   return (
-    <label className="block">
+    <Wrapper className="block">
       <span className="text-[17px] font-semibold">
         {label}
         {required && (
@@ -180,7 +202,7 @@ function Field({
         </span>
       )}
       <span className="mt-1.5 block">{children}</span>
-    </label>
+    </Wrapper>
   );
 }
 

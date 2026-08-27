@@ -86,8 +86,6 @@ const TOKEN_SYNONYMS: Record<string, string> = {
   dist: "distillery",
   distillers: "distillery",
   distilling: "distillery",
-  // Conjunction
-  "&": "and",
   // Units
   ml: "millilitre",
   mls: "millilitre",
@@ -109,9 +107,16 @@ const NOISE_TOKENS = new Set(["the", "a", "an", "of"]);
 /**
  * Split into comparable tokens: typography folded, lower-cased, punctuation
  * removed. Does NOT apply synonyms — that is a separate, reportable step.
+ *
+ * Ampersands and plus signs are spelled out BEFORE punctuation is stripped.
+ * They are punctuation, so stripping first destroyed them and the "&" entry in
+ * TOKEN_SYNONYMS could never fire — "Smith & Sons" against "Smith and Sons"
+ * was a hard mismatch, despite being an allowable revision TTB permits without
+ * refiling. Any punctuation-bearing synonym added later needs the same
+ * treatment; `canonicalTokens("A & B")` is pinned by a test.
  */
 export function tokenize(input: string): string[] {
-  return stripPunctuation(foldTypography(input))
+  return stripPunctuation(foldTypography(input).replace(/[&+]/g, " and "))
     .toLowerCase()
     .split(/\s+/)
     .filter(Boolean);
@@ -190,7 +195,15 @@ export interface LadderMatch {
  */
 export function ladderMatch(a: string, b: string): LadderMatch {
   for (const rung of NORMALISATION_LADDER) {
-    if (rung.apply(a) === rung.apply(b)) {
+    const left = rung.apply(a);
+    const right = rung.apply(b);
+    /*
+     * Two values that both reduce to nothing are not a match, they are two
+     * absences. Without this guard a brand name of "&" and a brand name of
+     * "..." agreed at the punctuation rung and reported a confident pass on a
+     * comparison of empty string against empty string.
+     */
+    if (left === right && left.trim() !== "") {
       return { matched: true, level: rung.id, description: rung.describe() };
     }
   }

@@ -93,7 +93,21 @@ describe("brand name", () => {
     const report = verify(BOURBON_APPLICATION, label({ brandName: null }), META);
     const check = find(report.checks, "brand_name");
     expect(check.verdict).toBe("fail");
-    expect(check.rule).toBe("label-field-absent");
+    // A mandatory item missing from the artwork is a regulatory defect, not a
+    // failure to match — so it is reported as a compliance check.
+    expect(check.rule).toBe("mandatory-field-absent");
+    expect(check.category).toBe("compliance");
+  });
+
+  it("still fails a missing mandatory field when the application is silent too", () => {
+    // Regression: testing the application field first let an empty application
+    // cancel the label's own unconditional obligation.
+    const report = verify(
+      { ...BOURBON_APPLICATION, brandName: "" },
+      label({ brandName: null }),
+      META,
+    );
+    expect(find(report.checks, "brand_name").verdict).toBe("fail");
   });
 
   it("declines to conclude anything from text it could barely read", () => {

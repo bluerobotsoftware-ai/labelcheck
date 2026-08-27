@@ -160,11 +160,19 @@ export function assessWarning(reading: WarningReading): WarningAssessment {
     );
   }
 
-  // Belt and braces: trust the reader's flag, but also check the transcription
-  // directly. If the label really does read "GOVERNMENT WARNING:" the verbatim
-  // text will contain it in capitals, whatever the flag says.
-  const headerAllCaps =
-    reading.headerIsAllCaps && reading.text.includes(WARNING_HEADER);
+  /*
+   * Belt and braces: trust the reader's flag, but also check the transcription
+   * directly. If the label really does read "GOVERNMENT WARNING:" the verbatim
+   * text will contain it in capitals, whatever the flag says.
+   *
+   * Whitespace is flattened first. On a real bottle the heading frequently
+   * wraps — "GOVERNMENT" on one line, "WARNING:" on the next — and a raw
+   * substring test rejects that compliant label while its sibling wording check
+   * passes the identical string, so the report contradicted itself. Non-breaking
+   * and full-width spaces fold here too.
+   */
+  const flattened = reading.text.normalize("NFKC").replace(/\s+/g, " ");
+  const headerAllCaps = reading.headerIsAllCaps && flattened.includes(WARNING_HEADER);
   if (!headerAllCaps) {
     problems.push(
       'The heading "GOVERNMENT WARNING:" must appear in capital letters.',

@@ -22,6 +22,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { downscaleImage } from "@/lib/downscale";
+import { verifyLabel } from "@/lib/verifyClient";
 import { normaliseHeader, parseCsvRecords, toCsv } from "@/lib/csv";
 import { VerdictBadge } from "./verdict";
 import { ReportView } from "./ReportView";
@@ -134,6 +135,12 @@ export function BatchCheck() {
 
     const worker = async () => {
       while (!cancelled.current) {
+        /*
+         * `cursor++` is safe here despite four concurrent workers: JavaScript
+         * is single-threaded and there is no await between the read and the
+         * write, so the increment cannot interleave. Any await inserted between
+         * these two lines would introduce a genuine double-processing race.
+         */
         const index = cursor++;
         if (index >= pending.length) return;
         const item = pending[index];
@@ -143,39 +150,21 @@ export function BatchCheck() {
         );
 
         const started = Date.now();
-        try {
-          const { file } = await downscaleImage(item.file);
-          const body = new FormData();
-          body.append("image", file);
-          body.append("application", JSON.stringify(item.application));
+        const { file } = await downscaleImage(item.file);
+        // verifyLabel waits out 429s rather than failing: a rate limit is a
+        // "wait" signal, and a 300-label run must not abandon 240 of them.
+        const outcome = await verifyLabel(file, item.application as Application);
+        const elapsedMs = Date.now() - started;
 
-          const response = await fetch("/api/verify", { method: "POST", body });
-          const payload = await response.json();
-          const elapsedMs = Date.now() - started;
-
-          setItems((current) =>
-            current.map((c) =>
-              c.id === item.id
-                ? response.ok
-                  ? { ...c, status: "done", report: payload.report, elapsedMs }
-                  : {
-                      ...c,
-                      status: "failed",
-                      error: payload?.message ?? "Failed to check",
-                      elapsedMs,
-                    }
-                : c,
-            ),
-          );
-        } catch {
-          setItems((current) =>
-            current.map((c) =>
-              c.id === item.id
-                ? { ...c, status: "failed", error: "Network error", elapsedMs: Date.now() - started }
-                : c,
-            ),
-          );
-        }
+        setItems((current) =>
+          current.map((c) =>
+            c.id === item.id
+              ? outcome.ok
+                ? { ...c, status: "done", report: outcome.report, elapsedMs }
+                : { ...c, status: "failed", error: outcome.message, elapsedMs }
+              : c,
+          ),
+        );
       }
     };
 

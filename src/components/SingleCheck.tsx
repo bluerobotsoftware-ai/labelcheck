@@ -10,10 +10,11 @@
  * user and the thing they came to do.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApplicationForm } from "./ApplicationForm";
 import { ReportView } from "./ReportView";
 import { downscaleImage } from "@/lib/downscale";
+import { verifyLabel } from "@/lib/verifyClient";
 import type { Application, VerificationReport } from "@/lib/ttb/types";
 
 interface Sample {
@@ -45,7 +46,6 @@ type Status =
 export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
   const [application, setApplication] = useState<Application>(EMPTY_APPLICATION);
   const [image, setImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [status, setStatus] = useState<Status>({ phase: "idle" });
   const resultRef = useRef<HTMLDivElement>(null);
@@ -58,22 +58,28 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
       .catch(() => setSamples([]));
   }, []);
 
-  // Object URLs leak unless explicitly released.
+  /*
+   * The preview URL is DERIVED from the file, not stored alongside it. Holding
+   * it in state meant the effect had to setState on every change, which cascades
+   * an extra render and lets the two drift out of step. The effect that remains
+   * does only what an effect is for: releasing an external resource.
+   */
+  const previewUrl = useMemo(
+    () => (image ? URL.createObjectURL(image) : null),
+    [image],
+  );
+
   useEffect(() => {
-    if (!image) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(image);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [image]);
+    if (!previewUrl) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const loadSample = useCallback(async (sample: Sample) => {
     setStatus({ phase: "idle" });
     setApplication({ ...EMPTY_APPLICATION, ...sample.application });
     try {
       const response = await fetch(`/samples/${sample.file}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
       setImage(new File([blob], sample.file, { type: blob.type || "image/png" }));
     } catch {
@@ -89,37 +95,21 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
     if (!image) return;
     setStatus({ phase: "working", startedAt: Date.now() });
 
-    try {
-      // Shrink before upload — the largest single lever on response time.
-      const { file } = await downscaleImage(image);
+    // Shrink before upload — the largest single lever on response time.
+    const { file } = await downscaleImage(image);
+    const outcome = await verifyLabel(file, application);
 
-      const body = new FormData();
-      body.append("image", file);
-      body.append("application", JSON.stringify(application));
-
-      const response = await fetch("/api/verify", { method: "POST", body });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setStatus({
-          phase: "error",
-          message: payload?.message ?? "The label could not be checked.",
-          retryable: payload?.retryable ?? true,
-        });
-        return;
-      }
-
+    if (outcome.ok) {
       setStatus({
         phase: "done",
-        report: payload.report,
-        isDemoReader: payload.isDemoReader ?? false,
+        report: outcome.report,
+        isDemoReader: outcome.isDemoReader,
       });
-    } catch {
+    } else {
       setStatus({
         phase: "error",
-        message:
-          "Could not reach the server. Check your connection and try again.",
-        retryable: true,
+        message: outcome.message,
+        retryable: outcome.retryable,
       });
     }
   }, [application, image]);
@@ -228,7 +218,7 @@ function ElapsedTimer({ startedAt }: { startedAt: number }) {
 
   const seconds = (elapsed / 1000).toFixed(1);
   return (
-    <p className="mt-3 text-[15px] text-[var(--color-ink-soft)]" role="status">
+    <p className="mt-3 text-[15px] text-[var(--color-ink-soft)]" aria-hidden="true">
       Reading the label — {seconds}s
       {elapsed > 8000 && " · taking longer than usual"}
     </p>
@@ -314,6 +304,8 @@ function ImageDrop({
         type="file"
         accept="image/jpeg,image/png,image/gif,image/webp"
         className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
         onChange={(event) => {
           const chosen = event.target.files?.[0];
           if (chosen) onSelect(chosen);
