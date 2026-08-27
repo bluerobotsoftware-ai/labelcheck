@@ -832,7 +832,10 @@ function checkLegibility(extraction: LabelExtraction): CheckResult {
     ? measureLegibility(extraction.governmentWarning.appearance)
     : null;
 
-  if (measured && (measured.effectivelyHidden || (measured.contrastTooLow && measured.typeTooSmall))) {
+  // Contrast alone decides. Cap height is corroborating detail only — as a
+  // trigger it flagged every compliant label in the sample set, because the
+  // reader reports the figure in a unit of its own choosing.
+  if (measured && measured.effectivelyHidden) {
     return {
       id,
       name,
@@ -844,7 +847,7 @@ function checkLegibility(extraction: LabelExtraction): CheckResult {
     };
   }
 
-  if (measured && (measured.contrastTooLow || measured.typeTooSmall)) {
+  if (measured && measured.contrastTooLow) {
     return {
       id,
       name,

@@ -101,10 +101,31 @@ describe("measureLegibility", () => {
     expect(measured.findings.join(" ")).toMatch(/contrast/i);
   });
 
-  it("catches type that is conspicuously small", () => {
+  /**
+   * Cap height is measured but never decides, and this test pins that.
+   *
+   * Asked for a percentage, the reader returns a fraction — 0.01 for an
+   * ordinary warning — and no wording of the schema changed it. As a standalone
+   * trigger it flagged five of eight compliant sample labels. A check that
+   * cries wolf on good labels teaches agents to dismiss it, and then it fails
+   * silently on the one that mattered. Contrast decides; this corroborates.
+   */
+  it("notes small type but does not flag it on its own", () => {
     const measured = measureLegibility({ ...wellPrinted, capHeightPercentOfLabel: 0.3 });
     expect(measured.typeTooSmall).toBe(true);
-    expect(measured.findings.join(" ")).toMatch(/letters/i);
+    // Well-contrasted, so nothing is reported to the agent.
+    expect(measured.contrastTooLow).toBe(false);
+    expect(measured.findings).toHaveLength(0);
+  });
+
+  it("mentions small type only when contrast has already failed", () => {
+    const measured = measureLegibility({
+      textColorHex: "#c9c6bb",
+      backgroundColorHex: "#f4f1e6",
+      capHeightPercentOfLabel: 0.3,
+    });
+    expect(measured.findings.join(" ")).toMatch(/contrast/i);
+    expect(measured.findings.join(" ")).toMatch(/small/i);
   });
 
   it("draws no conclusion when the reader reported no measurements", () => {

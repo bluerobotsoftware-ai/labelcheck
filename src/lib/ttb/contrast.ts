@@ -97,12 +97,23 @@ export const HIDDEN_WARNING_CONTRAST = 2.0;
 /**
  * Minimum cap height, as a percentage of the label's height.
  *
- * 27 CFR 16.22 sets type size in millimetres against container volume — 2mm for
- * containers above 3 litres, 1mm for 237ml and under, and so on. Without a
- * physical scale in the photograph those cannot be measured, so this is a
- * proxy: on a typical 750ml label around 100mm tall, 1mm of cap height is
- * about 1%. Deliberately set below that, so this flags only warnings that are
- * conspicuously small rather than second-guessing borderline typography.
+ * ADVISORY ONLY. This never decides a verdict on its own — see the note below.
+ *
+ * 27 CFR 16.22 sets type size in millimetres against container volume, which no
+ * photograph can establish without a physical scale, so this was always a proxy:
+ * on a 750ml label around 100mm tall, 1mm of cap height is roughly 1%.
+ *
+ * Measuring it turned out not to work. Asked for a percentage, the reader
+ * returned 0.01 and 0.02 for perfectly ordinary warnings — reporting a fraction
+ * regardless of how the field was described. Every compliant sample tripped the
+ * threshold. A check that flags five out of eight good labels does not protect
+ * anyone; it teaches agents to dismiss the flag, and then it fails silently on
+ * the one that mattered.
+ *
+ * Contrast has no such problem, because it derives from two colours the model
+ * can simply look at, and the arithmetic is fixed. So contrast decides, and cap
+ * height only ever corroborates a contrast failure. Better a narrow check that
+ * works than a broad one nobody trusts.
  */
 export const MIN_CAP_HEIGHT_PERCENT = 0.7;
 
@@ -144,9 +155,12 @@ export function measureLegibility(appearance: {
       `the warning is printed at ${contrast.toFixed(1)}:1 contrast against its background, below the ${MIN_WARNING_CONTRAST}:1 generally accepted as readable`,
     );
   }
-  if (typeTooSmall && capHeightPercent !== null) {
+  // Reported only alongside a contrast failure, never on its own. See the note
+  // on MIN_CAP_HEIGHT_PERCENT: as a standalone trigger this produced a false
+  // positive on every compliant label in the sample set.
+  if (typeTooSmall && contrastTooLow && capHeightPercent !== null) {
     findings.push(
-      `the warning's letters are about ${capHeightPercent.toFixed(2)}% of the label's height, conspicuously smaller than the surrounding mandatory text`,
+      "the type also appears small relative to the rest of the label",
     );
   }
 
