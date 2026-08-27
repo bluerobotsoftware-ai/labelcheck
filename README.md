@@ -231,6 +231,9 @@ findings between them. The full reports are committed:
 - `docs/AUDIT-CORRECTNESS.md` — rules engine, parsers, regulatory accuracy
 - `docs/AUDIT-ROBUSTNESS.md` — API surface, readers, React, accessibility
 
+`docs/CHALLENGES.md` is a candid retrospective on what was actually hard here —
+the places the brief and reality disagreed, and the reasoning that resolved them.
+
 Every CRITICAL and HIGH finding is fixed, and each one has a regression test
 naming it (`tests/auditRegressions.test.ts`, `tests/security.test.ts`). The
 three worst:
