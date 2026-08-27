@@ -41,6 +41,7 @@ export const COMPLIANT_SPIRITS: LabelExtraction = {
     bounds: { x: 0.08, y: 0.86, width: 0.84, height: 0.09 },
     appearance: {
       measuredContrast: 11.2,
+      relativeContrast: 1.4,
       textColorHex: "#2b2b26",
       backgroundColorHex: "#efeadc",
     },

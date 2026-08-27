@@ -1,120 +1,83 @@
 /**
  * Contrast measured from the image's own pixels.
  *
- * The third attempt at this check, and the reason for each step is worth
- * recording because the failures were instructive.
+ * The fourth attempt at this check. Each failure narrowed what the model is
+ * asked to do, and the sequence is worth recording:
  *
- *   1. Ask the model "is this legible?" — it said yes about a warning washed
- *      out to near-invisibility.
- *   2. Ask the model for the two colours and compute the ratio in code. Better,
- *      and it caught that label at 1.1:1 — but running the SAME image four
- *      times produced approve, reject, reject, approve. The model samples a
- *      slightly different pixel each time, and near a threshold that flips the
- *      verdict.
- *   3. This file. The model is asked only WHERE the warning is; the contrast is
- *      computed from the actual pixels inside that box.
+ *   1. "Is this legible?" — it said yes about a warning washed out to
+ *      near-invisibility.
+ *   2. "What colour is the text, and the background?" Correct on that label,
+ *      but running the SAME image four times gave approve, reject, reject,
+ *      approve: it samples a slightly different pixel each call.
+ *   3. "Where is the warning?", then cluster the pixels in that box into ink
+ *      and paper with Otsu's method. Deterministic at last — but the reader's
+ *      boxes are loose, and a loose box drags in background that dilutes the
+ *      ink cluster. Four compliant labels were flagged in production, one of
+ *      them rejected outright.
+ *   4. This version. Same box, but the ratio is taken between percentiles
+ *      rather than cluster means.
  *
- * Step 2's failure mattered more than it first appears. The rules engine is
- * deterministic and advertised as such — same input, same report. That promise
- * is worthless if the input is a coin flip. A compliance tool that rejects a
- * label on Tuesday and approves it on Wednesday is not one an agent can defend
- * to an applicant, and the flakiness would surface as arbitrariness rather than
- * as a bug.
+ * Percentiles are what make it robust. The darkest 2% of pixels are ink
+ * wherever the box happens to fall; the 90th percentile is paper. Extra
+ * background only pads the light end, so a sloppy box costs accuracy at the
+ * margin instead of inverting the answer. On the sample set with deliberately
+ * loose boxes: 9.3 and 11.5 for compliant labels, 3.5 for the washed-out one.
  *
- * Otsu's method separates the pixels into ink and substrate without being told
- * which is which, so nothing here depends on a model's opinion about a colour.
- * Given the same crop it returns the same number every time.
+ * Step 3's failure is the one to remember. It was deterministic and wrong,
+ * which is worse than flaky and wrong: it rejected a compliant product
+ * confidently, with a citation attached, every single time.
  */
 
 import sharp from "sharp";
 import { relativeLuminance } from "./contrast";
 
-/** Where the warning sits, as fractions of the image. */
+/** Where the warning sits. Fractions of the image, or pixels — both accepted. */
 export interface WarningBounds {
-  /** Left edge, 0-1. */
   x: number;
-  /** Top edge, 0-1. */
   y: number;
-  /** Width, 0-1. */
   width: number;
-  /** Height, 0-1. */
   height: number;
 }
 
 export interface PixelContrastResult {
-  /** Measured contrast ratio between the text and its background. */
+  /** Measured contrast ratio between the warning text and its background. */
   contrast: number;
-  /** Hex of the darker cluster, for display back to an agent. */
+  /** The ink colour sampled, for showing an agent. */
   darkerHex: string;
-  /** Hex of the lighter cluster. */
+  /** The background colour sampled. */
   lighterHex: string;
-  /** Share of pixels in the smaller (ink) cluster — a sanity signal. */
-  inkFraction: number;
 }
 
-/** Clamp a fraction into [0,1], tolerating a model's approximate box. */
+/**
+ * Percentiles sampled for ink and for paper.
+ *
+ * INK at 2%: low enough to land on the darkest strokes rather than on the
+ * anti-aliased edges that surround them, which is what diluted the earlier
+ * cluster average. Not 0%, so a single stray dark pixel cannot set the result.
+ *
+ * PAPER at 90%: high enough to be substrate, below the specular highlights a
+ * glared photograph puts at the very top of the range.
+ */
+const INK_PERCENTILE = 0.02;
+const PAPER_PERCENTILE = 0.9;
+
+/** Clamp a fraction into [0,1], tolerating an approximate box. */
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
 }
 
-/** A paragraph of text covers a real share of its box. A border does not. */
-const MIN_INK_FRACTION = 0.03;
-
-function toHex(r: number, g: number, b: number): string {
+function toHex([r, g, b]: [number, number, number]): string {
   const part = (v: number) => Math.round(v).toString(16).padStart(2, "0");
   return `#${part(r)}${part(g)}${part(b)}`;
 }
 
 /**
- * Otsu's threshold over a 256-bin luminance histogram.
- *
- * Chooses the split that maximises between-class variance — the point at which
- * "ink" and "paper" are most cleanly separated. Standard, cheap, and entirely
- * deterministic.
- */
-function otsuThreshold(histogram: number[], total: number): number {
-  let sum = 0;
-  for (let i = 0; i < 256; i++) sum += i * histogram[i];
-
-  let sumBackground = 0;
-  let weightBackground = 0;
-  let maxVariance = -1;
-  let threshold = 0;
-
-  for (let t = 0; t < 256; t++) {
-    weightBackground += histogram[t];
-    if (weightBackground === 0) continue;
-
-    const weightForeground = total - weightBackground;
-    if (weightForeground === 0) break;
-
-    sumBackground += t * histogram[t];
-    const meanBackground = sumBackground / weightBackground;
-    const meanForeground = (sum - sumBackground) / weightForeground;
-
-    const variance =
-      weightBackground *
-      weightForeground *
-      (meanBackground - meanForeground) *
-      (meanBackground - meanForeground);
-
-    if (variance > maxVariance) {
-      maxVariance = variance;
-      threshold = t;
-    }
-  }
-
-  return threshold;
-}
-
-/**
  * Measure the contrast of the warning region.
  *
- * Returns null when the region cannot be measured — too small, off the image,
- * or so uniform that there is no text/background separation to find. Null means
- * "no measurement", never "compliant": the caller must not read silence as a
- * pass.
+ * Returns null when the region cannot be measured — off the image, or too
+ * small to sample. Null means "no measurement", never "compliant": the caller
+ * must not read silence as a pass.
  */
 export async function measureWarningContrast(
   image: Buffer,
@@ -122,28 +85,20 @@ export async function measureWarningContrast(
 ): Promise<PixelContrastResult | null> {
   let bounds = boundsInput;
   try {
-    const source = sharp(image);
-    const { width: fullWidth, height: fullHeight } = await source.metadata();
+    const { width: fullWidth, height: fullHeight } = await sharp(image).metadata();
     if (!fullWidth || !fullHeight) return null;
 
     /*
-     * Accept the box in either pixels or fractions.
+     * Accept the box in either unit.
      *
-     * The schema asks for fractions of the image. The reader frequently answers
-     * in pixels anyway — {x: 84, y: 883, width: 818, height: 69} for a 1000px
-     * label — and no wording of the field description changed that. Read as
-     * fractions those values clamp to a degenerate crop and the measurement
-     * silently returns null, which reads downstream as "legible".
-     *
-     * This is the same lesson as the cap-height figure that preceded it: the
-     * model picks its own units, so the boundary normalises rather than
-     * assumes. Any value above 1 cannot be a fraction, which makes the two
-     * cases trivially separable.
+     * The schema asks for fractions. The reader frequently answers in pixels
+     * anyway — {x: 84, y: 883, width: 818, height: 69} on an 800x1000 label —
+     * and no wording of the field description changed that. Read as fractions
+     * those clamp to a degenerate crop, the measurement returns null, and null
+     * reads downstream as "nothing wrong". Any value above 1 cannot be a
+     * fraction, which makes the two cases trivially separable.
      */
-    const looksLikePixels =
-      bounds.width > 1 || bounds.height > 1 || bounds.x > 1 || bounds.y > 1;
-
-    if (looksLikePixels) {
+    if (bounds.width > 1 || bounds.height > 1 || bounds.x > 1 || bounds.y > 1) {
       bounds = {
         x: bounds.x / fullWidth,
         y: bounds.y / fullHeight,
@@ -152,28 +107,19 @@ export async function measureWarningContrast(
       };
     }
 
-    /*
-     * Fit the box to the image first, then inset inside whatever is left.
-     *
-     * Order matters. The reader's rectangles routinely spill past the edge —
-     * 84 + 818 = 902 on an 800px-wide label — so insetting first and clamping
-     * afterwards pushed the crop right, off the warning panel and onto bare
-     * label stock. The dark cluster then found a border rule instead of the
-     * print and reported a flattering 5.2:1 for a warning that measures 1.1:1.
-     */
+    // Fit to the image first, then inset inside what remains. Insetting before
+    // clamping pushed the crop off the panel entirely on an overrunning box.
     const x0 = Math.round(clamp01(bounds.x) * fullWidth);
     const y0 = Math.round(clamp01(bounds.y) * fullHeight);
     const boxWidth = Math.min(Math.round(bounds.width * fullWidth), fullWidth - x0);
     const boxHeight = Math.min(Math.round(bounds.height * fullHeight), fullHeight - y0);
 
-    // Trim the margin, where a panel border or stray artwork tends to sit.
     const inset = 0.05;
     const left = x0 + Math.round(boxWidth * inset);
     const top = y0 + Math.round(boxHeight * inset);
     const width = Math.round(boxWidth * (1 - inset * 2));
     const height = Math.round(boxHeight * (1 - inset * 2));
 
-    // Too small a crop cannot hold a meaningful sample of both classes.
     if (width < 8 || height < 4) return null;
     if (left + width > fullWidth || top + height > fullHeight) return null;
 
@@ -183,72 +129,37 @@ export async function measureWarningContrast(
       .raw()
       .toBuffer({ resolveWithObject: true });
 
-    const channels = info.channels;
     const pixelCount = info.width * info.height;
     if (pixelCount === 0) return null;
 
-    // Build a luminance histogram, keeping per-bin colour sums so the two
-    // clusters can be reported back as real colours.
-    const histogram = new Array<number>(256).fill(0);
-    const luminance = new Uint8Array(pixelCount);
-
+    // Index the pixels by luminance, then read off the two percentiles.
+    const order = Array.from({ length: pixelCount }, (_, i) => i);
+    const luminance = new Float64Array(pixelCount);
     for (let i = 0; i < pixelCount; i++) {
-      const offset = i * channels;
-      const r = data[offset];
-      const g = data[offset + 1];
-      const b = data[offset + 2];
-      // Perceptual weighting, matching the luminance used for the final ratio.
-      const value = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
-      luminance[i] = value;
-      histogram[value]++;
+      const o = i * info.channels;
+      luminance[i] = 0.2126 * data[o] + 0.7152 * data[o + 1] + 0.0722 * data[o + 2];
     }
+    order.sort((a, b) => luminance[a] - luminance[b]);
 
-    const threshold = otsuThreshold(histogram, pixelCount);
+    const pixelAt = (percentile: number): [number, number, number] => {
+      const index = order[Math.min(pixelCount - 1, Math.floor(percentile * pixelCount))];
+      const o = index * info.channels;
+      return [data[o], data[o + 1], data[o + 2]];
+    };
 
-    let darkCount = 0;
-    let lightCount = 0;
-    const darkSum = [0, 0, 0];
-    const lightSum = [0, 0, 0];
+    const ink = pixelAt(INK_PERCENTILE);
+    const paper = pixelAt(PAPER_PERCENTILE);
 
-    for (let i = 0; i < pixelCount; i++) {
-      const offset = i * channels;
-      const target = luminance[i] <= threshold ? darkSum : lightSum;
-      target[0] += data[offset];
-      target[1] += data[offset + 1];
-      target[2] += data[offset + 2];
-      if (luminance[i] <= threshold) darkCount++;
-      else lightCount++;
-    }
+    const inkLuminance = relativeLuminance({ r: ink[0], g: ink[1], b: ink[2] });
+    const paperLuminance = relativeLuminance({ r: paper[0], g: paper[1], b: paper[2] });
 
-    if (darkCount === 0 || lightCount === 0) return null;
-
-    /*
-     * Sanity-check that the darker cluster is actually text.
-     *
-     * When the box overruns the warning panel, the darkest thing inside it is
-     * often a border rule or a scrap of the artwork rather than the print — a
-     * sliver of pixels that yields a flattering ratio. A paragraph of text
-     * covers a real share of its box; 1% does not.
-     *
-     * Below the floor we return null: no measurement, which the caller treats
-     * as "unknown", never as "legible".
-     */
-    const inkFraction = Math.min(darkCount, lightCount) / pixelCount;
-    if (inkFraction < MIN_INK_FRACTION) return null;
-
-    const darker = darkSum.map((c) => c / darkCount) as [number, number, number];
-    const lighter = lightSum.map((c) => c / lightCount) as [number, number, number];
-
-    const darkLuminance = relativeLuminance({ r: darker[0], g: darker[1], b: darker[2] });
-    const lightLuminance = relativeLuminance({ r: lighter[0], g: lighter[1], b: lighter[2] });
-
-    const contrast = (lightLuminance + 0.05) / (darkLuminance + 0.05);
+    const lighter = Math.max(inkLuminance, paperLuminance);
+    const darker = Math.min(inkLuminance, paperLuminance);
 
     return {
-      contrast,
-      darkerHex: toHex(darker[0], darker[1], darker[2]),
-      lighterHex: toHex(lighter[0], lighter[1], lighter[2]),
-      inkFraction,
+      contrast: (lighter + 0.05) / (darker + 0.05),
+      darkerHex: toHex(ink),
+      lighterHex: toHex(paper),
     };
   } catch {
     // Measurement is a bonus signal, never a gate. An unreadable or exotic

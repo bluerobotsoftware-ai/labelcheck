@@ -85,3 +85,13 @@ export const MIN_WARNING_CONTRAST = 4.5;
  * merely marginal. Around this level text is effectively invisible at a glance.
  */
 export const HIDDEN_WARNING_CONTRAST = 2.0;
+
+/**
+ * The warning's contrast as a fraction of the whole label's contrast.
+ *
+ * Below this, the warning is printed conspicuously more faintly than everything
+ * around it — which is the evasion, rather than a dim photograph. Measured over
+ * the sample set: compliant labels 0.93 to 3.6, the washed-out one 0.28. Half
+ * sits with a threefold margin either side.
+ */
+export const MIN_RELATIVE_WARNING_CONTRAST = 0.5;

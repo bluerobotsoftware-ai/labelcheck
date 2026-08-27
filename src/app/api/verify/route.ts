@@ -267,7 +267,21 @@ async function withMeasuredContrast(
   const warning = extraction.governmentWarning;
   if (!warning?.bounds) return extraction;
 
-  const measured = await measureWarningContrast(image, warning.bounds);
+  /*
+   * Measure the warning, and measure the label as a whole for comparison.
+   *
+   * The absolute figure alone cannot tell a badly-printed warning from a badly
+   * exposed photograph — a dim picture of a perfectly good label measured
+   * 1.53:1, and rejecting that blames the product for the camera. Dividing by
+   * the rest of the same label cancels the exposure, because both numbers move
+   * together. Across the sample set a compliant warning lands between 0.93 and
+   * 3.6 of its label; the deliberately washed-out one lands at 0.28.
+   */
+  const [measured, wholeLabel] = await Promise.all([
+    measureWarningContrast(image, warning.bounds),
+    measureWarningContrast(image, WHOLE_LABEL_BOUNDS),
+  ]);
+
   if (!measured) return extraction;
 
   return {
@@ -276,12 +290,19 @@ async function withMeasuredContrast(
       ...warning,
       appearance: {
         measuredContrast: measured.contrast,
+        relativeContrast:
+          wholeLabel && wholeLabel.contrast > 0
+            ? measured.contrast / wholeLabel.contrast
+            : undefined,
         textColorHex: measured.darkerHex,
         backgroundColorHex: measured.lighterHex,
       },
     },
   };
 }
+
+/** Nearly the full image, inset to skip the trimmed edge of a photograph. */
+const WHOLE_LABEL_BOUNDS = { x: 0.02, y: 0.02, width: 0.96, height: 0.96 };
 
 /**
  * Identify an image from its leading bytes.

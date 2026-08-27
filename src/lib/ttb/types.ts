@@ -249,6 +249,18 @@ export interface WarningAppearance {
    * non-deterministic input is not deterministic.
    */
   measuredContrast: number;
+  /**
+   * The warning contrast divided by the contrast of the label as a whole.
+   *
+   * This, not the absolute figure, is what decides. An underexposed photograph
+   * of a well-printed label measures low in absolute terms — 1.53:1 on one
+   * sample — and rejecting it would blame the product for the camera. Dividing
+   * by the rest of the same label cancels the exposure: a warning printed like
+   * the rest of the label sits near 1, while one deliberately washed out sits
+   * near 0.28. Measured across the sample set the two populations are three
+   * times apart.
+   */
+  relativeContrast?: number;
   /** The two colours the measurement separated, for showing an agent. */
   textColorHex: string;
   backgroundColorHex: string;

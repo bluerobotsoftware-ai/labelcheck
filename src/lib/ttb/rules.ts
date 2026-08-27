@@ -15,7 +15,7 @@
 
 import { parseAlcohol, proofIsConsistent, toleranceFor } from "./abv";
 import { checkStandardOfFill, formatVolume, parseVolume } from "./netContents";
-import { HIDDEN_WARNING_CONTRAST, MIN_WARNING_CONTRAST } from "./contrast";
+import { MIN_RELATIVE_WARNING_CONTRAST } from "./contrast";
 import { canonicalTokens, ladderMatch } from "./normalize";
 import { combinedSimilarity, containsAllTokens } from "./similarity";
 import type {
@@ -833,26 +833,25 @@ function checkLegibility(extraction: LabelExtraction): CheckResult {
   // Contrast alone decides. Cap height is corroborating detail only — as a
   // trigger it flagged every compliant label in the sample set, because the
   // reader reports the figure in a unit of its own choosing.
-  if (measured && measured.measuredContrast < HIDDEN_WARNING_CONTRAST) {
+  /*
+   * The warning must be printed like the rest of the label, not hidden in it.
+   *
+   * Judged on the RATIO of its contrast to the label's overall contrast, never
+   * on the absolute figure. A dim photograph of a well-printed label measures
+   * low in absolute terms, and failing that would blame the product for the
+   * camera; dividing by the same label cancels the exposure. Measured across
+   * the sample set, compliant warnings land between 0.93 and 3.6 while a
+   * deliberately washed-out one lands at 0.28 — a threshold at half has a
+   * threefold margin on both sides.
+   */
+  if (measured?.relativeContrast !== undefined && measured.relativeContrast < MIN_RELATIVE_WARNING_CONTRAST) {
     return {
       id,
       name,
       category: "compliance",
       verdict: "fail",
       rule: "warning-below-measured-legibility",
-      explanation: `The health warning is not readily legible: it is printed at ${measured.measuredContrast.toFixed(1)}:1 contrast against its background (${measured.textColorHex} on ${measured.backgroundColorHex}), far below the ${MIN_WARNING_CONTRAST}:1 generally accepted as readable. Measured from the image itself. This is a fault in how the label is printed, not in the photograph, so a clearer image will not resolve it.`,
-      citation,
-    };
-  }
-
-  if (measured && measured.measuredContrast < MIN_WARNING_CONTRAST) {
-    return {
-      id,
-      name,
-      category: "compliance",
-      verdict: "review",
-      rule: "warning-legibility-marginal",
-      explanation: `The health warning may not be readily legible: it is printed at ${measured.measuredContrast.toFixed(1)}:1 contrast against its background, below the ${MIN_WARNING_CONTRAST}:1 generally accepted as readable. Please confirm by eye at actual container size.`,
+      explanation: `The health warning is printed far more faintly than the rest of the label: ${measured.measuredContrast.toFixed(1)}:1 contrast against its background, where the label overall reaches ${(measured.measuredContrast / measured.relativeContrast).toFixed(1)}:1. Measured from the image itself. This is a fault in how the label is printed, not in the photograph, so a clearer image will not resolve it.`,
       citation,
     };
   }
