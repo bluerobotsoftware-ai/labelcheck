@@ -194,6 +194,13 @@ export function SingleCheck({ hasRealReader }: { hasRealReader: boolean }) {
           <>
             {status.isDemoReader && <DemoResultWarning />}
             <ReportView report={status.report} />
+            {image && (
+              <SaveCaseFile
+                report={status.report}
+                application={application}
+                image={image}
+              />
+            )}
           </>
         )}
       </div>
@@ -404,6 +411,85 @@ function DemoResultWarning() {
         No reader is configured, so fixed demo data was used. Do not treat any of
         it as a finding about the label you uploaded.
       </p>
+    </section>
+  );
+}
+
+/**
+ * Save the report and the artwork it was drawn from, as one archive.
+ *
+ * Offered on every outcome, not only on a clean pass. A rejection is the record
+ * an agent needs *most* — it is what a rejection letter is written from, and
+ * what an appeal is argued against six months later. Withholding the file
+ * exactly when the decision is contested would be the wrong way round.
+ *
+ * The wording changes with the verdict so the button describes what the agent
+ * is actually filing.
+ */
+function SaveCaseFile({
+  report,
+  application,
+  image,
+}: {
+  report: VerificationReport;
+  application: Application;
+  image: File;
+}) {
+  const [state, setState] = useState<"idle" | "working" | "failed">("idle");
+
+  const save = useCallback(async () => {
+    setState("working");
+    try {
+      const bytes = new Uint8Array(await image.arrayBuffer());
+      const { buildCaseFile } = await import("@/lib/caseFile");
+      const file = buildCaseFile(report, application, {
+        filename: image.name,
+        bytes,
+      });
+
+      const blob = new Blob([file.bytes as unknown as BlobPart], {
+        type: "application/zip",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setState("idle");
+    } catch {
+      setState("failed");
+    }
+  }, [application, image, report]);
+
+  const wording =
+    report.recommendation === "approve"
+      ? "Save this result for the file"
+      : report.recommendation === "reject"
+        ? "Save this result for the rejection file"
+        : "Save this result for review";
+
+  return (
+    <section className="mt-6 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-6 no-print">
+      <h3 className="text-lg font-semibold">{wording}</h3>
+      <p className="mt-1 text-[15px] text-[var(--color-ink-soft)]">
+        Downloads a single zip containing a printable report, the same report as
+        data, and the label image this decision was made from. A decision without
+        its evidence is not a record.
+      </p>
+      <button
+        type="button"
+        onClick={save}
+        disabled={state === "working"}
+        className="mt-4 min-h-12 rounded-lg border-2 border-[var(--color-brand)] px-6 font-bold text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-white disabled:opacity-60"
+      >
+        {state === "working" ? "Preparing…" : "Download report and image (.zip)"}
+      </button>
+      {state === "failed" && (
+        <p role="alert" className="mt-3 text-[15px] font-semibold text-[var(--color-fail)]">
+          The file could not be prepared. Please try again.
+        </p>
+      )}
     </section>
   );
 }
